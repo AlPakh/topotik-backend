@@ -21,6 +21,12 @@ def create_user(db: Session, user: schemas.UserCreate):
     db.add(db_user); db.commit(); db.refresh(db_user)
     return db_user
 
+def get_users(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.User).offset(skip).limit(limit).all()
+
+def get_user(db: Session, user_id: UUID):
+    return db.query(models.User).filter(models.User.user_id == user_id).first()
+
 # ————————————————————————————————————————————————
 # Auth
 def authenticate_user(db: Session, email: str, password: str):
@@ -44,6 +50,21 @@ def create_map(db: Session, map_in: schemas.MapCreate, user_id):
 
 def get_maps(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Map).offset(skip).limit(limit).all()
+
+def get_map(db: Session, map_id: UUID):
+    return db.query(models.Map).filter(models.Map.map_id == map_id).first()
+
+def update_map(db: Session, map_id: UUID, data: dict):
+    m = get_map(db, map_id)
+    for key, val in data.items():
+        setattr(m, key, val)
+    db.commit(); db.refresh(m)
+    return m
+
+def delete_map(db: Session, map_id: UUID):
+    m = get_map(db, map_id)
+    db.delete(m); db.commit()
+    return m
 
 # ————————————————————————————————————————————————
 # Collections
