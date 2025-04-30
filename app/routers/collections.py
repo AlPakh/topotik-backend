@@ -6,6 +6,7 @@ from typing import List
 
 from app import schemas, crud
 from app.database import SessionLocal
+from app.auth import get_user_id_from_token  
 
 router = APIRouter(prefix="/collections", tags=["collections"])
 get_db = SessionLocal
@@ -22,11 +23,7 @@ def get_collection(collection_id: UUID, db: Session = Depends(get_db)):
     return c
 
 @router.post("/", response_model=schemas.Collection, status_code=status.HTTP_201_CREATED)
-def create_collection(collection_in: schemas.CollectionCreate, db: Session = Depends(get_db), user_id: UUID = Depends(...)):
-    """
-    TODO: заменить Depends(...) на вашу зависимость,
-    которая извлекает user_id из токена.
-    """
+def create_collection(collection_in: schemas.CollectionCreate, db: Session = Depends(get_db), user_id: UUID = Depends(get_user_id_from_token)):
     return crud.create_collection(db, collection_in, user_id)
 
 @router.put("/{collection_id}", response_model=schemas.Collection)

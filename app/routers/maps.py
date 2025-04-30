@@ -6,6 +6,7 @@ from typing import List
 
 from app import schemas, crud
 from app.database import SessionLocal
+from app.auth import get_user_id_from_token  
 
 router = APIRouter(prefix="/maps", tags=["maps"])
 get_db = SessionLocal
@@ -22,11 +23,7 @@ def get_map(map_id: UUID, db: Session = Depends(get_db)):
     return m
 
 @router.post("/", response_model=schemas.Map, status_code=status.HTTP_201_CREATED)
-def create_map(map_in: schemas.MapCreate, db: Session = Depends(get_db), user_id: UUID = Depends(...)):
-    """
-    TODO: заменить Depends(...) на вашу зависимость, 
-    которая достаёт user_id из токена.
-    """
+def create_map(map_in: schemas.MapCreate, db: Session = Depends(get_db), user_id: UUID = Depends(get_user_id_from_token)):
     return crud.create_map(db, map_in, user_id)
 
 @router.put("/{map_id}", response_model=schemas.Map)
