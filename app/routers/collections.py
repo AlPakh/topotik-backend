@@ -6,7 +6,7 @@ from typing import List
 
 from app import schemas, crud
 from app.database import SessionLocal
-from app.auth import get_user_id_from_token  
+from app.routers.auth import get_user_id_from_token  
 
 router = APIRouter(prefix="/collections", tags=["collections"])
 get_db = SessionLocal
