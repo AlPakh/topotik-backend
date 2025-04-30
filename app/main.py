@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db
 from app.routers import auth, users, maps, collections, markers
 
+app = FastAPI(title="Topotik API")
 # CORS
 app.add_middleware(
     CORSMiddleware,
