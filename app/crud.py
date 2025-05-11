@@ -467,61 +467,106 @@ def remove_map_from_folder(db: Session, map_id: UUID, folder_id: UUID) -> bool:
 
 def delete_folder(db: Session, folder_id: UUID) -> bool:
     """
-    Удаляет папку.
+    Удаляет папку и все её содержимое каскадно (включая все подпапки и все карты в них).
     
     folder_id: UUID удаляемой папки
     
     Возвращает True в случае успеха, False в случае ошибки.
     """
     try:
-        # Перемещаем все вложенные папки на уровень выше (к родителю удаляемой папки)
-        parent_folder_id_result = db.execute(
-            text("""
-                SELECT parent_folder_id 
-                FROM topotik.folders 
-                WHERE folder_id = :folder_id
-            """),
-            {"folder_id": str(folder_id)}
-        ).fetchone()
+        # Получаем список всех подпапок для каскадного удаления с информацией о глубине вложенности
+        # Используем WITH RECURSIVE для получения всего дерева подпапок вместе с уровнем вложенности
+        subfolders_query = text("""
+            WITH RECURSIVE folder_tree AS (
+                -- Базовый случай: начальная папка
+                SELECT folder_id, parent_folder_id, 0 as depth
+                FROM topotik.folders
+                WHERE folder_id = :root_folder_id
+                
+                UNION ALL
+                
+                -- Рекурсивный случай: все подпапки
+                SELECT f.folder_id, f.parent_folder_id, ft.depth + 1
+                FROM topotik.folders f
+                JOIN folder_tree ft ON f.parent_folder_id = ft.folder_id
+            )
+            SELECT folder_id, depth FROM folder_tree ORDER BY depth DESC
+        """)
         
-        parent_folder_id = parent_folder_id_result[0] if parent_folder_id_result else None
+        # Выполняем запрос для получения всех ID подпапок, отсортированных по глубине (сначала самые глубокие)
+        result = db.execute(subfolders_query, {"root_folder_id": str(folder_id)})
         
-        # Обновляем родителя для подпапок удаляемой папки
-        db.execute(
-            text("""
-                UPDATE topotik.folders 
-                SET parent_folder_id = :parent_folder_id 
-                WHERE parent_folder_id = :folder_id
-            """),
-            {
-                "folder_id": str(folder_id),
-                "parent_folder_id": parent_folder_id
-            }
-        )
+        folders_to_delete = []
+        for row in result:
+            folders_to_delete.append(str(row.folder_id))
         
-        # Удаляем связи карт с папкой
-        db.execute(
-            text("""
-                DELETE FROM topotik.folder_maps 
-                WHERE folder_id = :folder_id
-            """),
-            {"folder_id": str(folder_id)}
-        )
-    
-    # Удаляем саму папку
-        db.execute(
-            text("""
-                DELETE FROM topotik.folders 
-                WHERE folder_id = :folder_id
-            """),
-            {"folder_id": str(folder_id)}
-        )
+        print(f"Папки для удаления (отсортированные по глубине вложенности): {folders_to_delete}")
         
-        db.commit()
-        return True
+        # Получаем ID всех карт, которые находятся в удаляемых папках
+        if folders_to_delete:
+            maps_query = text("""
+                SELECT map_id FROM topotik.folder_maps 
+                WHERE folder_id IN :folder_ids
+            """)
+            
+            maps_result = db.execute(
+                maps_query, 
+                {"folder_ids": tuple(folders_to_delete)}
+            ).fetchall()
+            
+            maps_to_delete = [str(row.map_id) for row in maps_result]
+            print(f"Карты для удаления: {maps_to_delete}")
+            
+            # Удаляем связи между картами и папками
+            for folder_id_str in folders_to_delete:
+                db.execute(
+                    text("""
+                        DELETE FROM topotik.folder_maps 
+                        WHERE folder_id = :folder_id
+                    """),
+                    {"folder_id": folder_id_str}
+                )
+            
+            # Удаляем права доступа к картам
+            if maps_to_delete:
+                db.execute(
+                    text("""
+                        DELETE FROM topotik.map_access
+                        WHERE map_id IN :map_ids
+                    """),
+                    {"map_ids": tuple(maps_to_delete)}
+                )
+                
+                # Удаляем сами карты
+                db.execute(
+                    text("""
+                        DELETE FROM topotik.maps
+                        WHERE map_id IN :map_ids
+                    """),
+                    {"map_ids": tuple(maps_to_delete)}
+                )
+            
+            # Удаляем папки в правильном порядке - от самых глубоко вложенных к корневой
+            # Порядок folders_to_delete уже отсортирован по глубине (благодаря ORDER BY depth DESC в запросе)
+            for folder_id_str in folders_to_delete:
+                db.execute(
+                    text("""
+                        DELETE FROM topotik.folders 
+                        WHERE folder_id = :folder_id
+                    """),
+                    {"folder_id": folder_id_str}
+                )
+            
+            db.commit()
+            return True
+        else:
+            print(f"Папка {folder_id} не найдена")
+            return False
     except Exception as e:
         db.rollback()
         print(f"Ошибка при удалении папки: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def move_map_to_folder(db: Session, user_id: UUID, map_id: UUID, folder_id: Optional[UUID] = None) -> bool:
