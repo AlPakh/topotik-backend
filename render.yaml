@@ -9,7 +9,7 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: topotik-db
+          name: topotik_db
           property: connectionString
       - key: SECRET_KEY
-        value: "<скрытый-секрет>"
+        value: "9a1f4bc8d2e3f1a5e7c2d9b0a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1"
