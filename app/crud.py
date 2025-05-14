@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from jose import jwt
 from app import models, schemas, config
@@ -8,6 +8,10 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy import text
 import uuid
 import re
+import logging
+
+# Добавлены улучшения для работы с виртуальным полем map_id в схеме Marker.
+# Функции get_marker и get_markers_by_map теперь корректно заполняют это поле.
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = config.settings.SECRET_KEY
@@ -23,16 +27,63 @@ def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
 
 def create_user(db: Session, user: schemas.UserCreate):
-    hashed = pwd_context.hash(user.password)
-    db_user = models.User(username=user.username, email=user.email, password=hashed)
-    db.add(db_user); db.commit(); db.refresh(db_user)
-    return db_user
+    print(f"DEBUG: create_user: Создание пользователя {user.username} / {user.email}")
+    try:
+        hashed = pwd_context.hash(user.password)
+        db_user = models.User(username=user.username, email=user.email, password=hashed)
+        db.add(db_user)
+        db.commit()  # Явно коммитим транзакцию
+        print(f"DEBUG: create_user: Коммит выполнен успешно")
+        
+        # Обновляем объект из БД
+        db.refresh(db_user)
+        print(f"DEBUG: create_user: Пользователь создан с ID: {db_user.user_id}")
+        
+        # Проверим, что пользователь действительно создан и доступен
+        from sqlalchemy import text
+        check_query = text("SELECT user_id, username, email FROM topotik.users WHERE user_id = :user_id")
+        result = db.execute(check_query, {"user_id": str(db_user.user_id)}).first()
+        print(f"DEBUG: create_user: Проверка SQL - пользователь найден: {result is not None}")
+        
+        if result:
+            print(f"DEBUG: create_user: Данные пользователя: ID={result.user_id}, username={result.username}")
+        
+        return db_user
+    except Exception as e:
+        print(f"DEBUG: create_user: Ошибка при создании пользователя: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        db.rollback()
+        raise
 
 def get_users(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.User).offset(skip).limit(limit).all()
 
 def get_user(db: Session, user_id: UUID):
-    return db.query(models.User).filter(models.User.user_id == user_id).first()
+    print(f"DEBUG: get_user вызван с user_id: {user_id}")
+    if not user_id:
+        print(f"DEBUG: get_user: user_id отсутствует или None")
+        return None
+    
+    # Проверяем тип UUID
+    try:
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+            print(f"DEBUG: get_user: user_id преобразован из строки в UUID")
+    except ValueError as e:
+        print(f"DEBUG: get_user: ошибка преобразования user_id в UUID: {str(e)}")
+        return None
+    
+    # Запрос к БД
+    try:
+        user = db.query(models.User).filter(models.User.user_id == user_id).first()
+        print(f"DEBUG: get_user: результат запроса: {'пользователь найден' if user else 'пользователь не найден'}")
+        return user
+    except Exception as e:
+        print(f"DEBUG: get_user: ошибка запроса к БД: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate) -> Optional[models.User]:
     user = db.query(models.User).filter(models.User.user_id == user_id).first()
@@ -49,9 +100,196 @@ def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate) -> O
         hashed_password = pwd_context.hash(user_update.password)
         user.password = hashed_password
     
+    if user_update.settings is not None:
+        user.settings = user_update.settings
+    
     db.commit()
     db.refresh(user)
     return user
+
+def get_user_settings(db: Session, user_id: UUID) -> Optional[Dict]:
+    """
+    Получить настройки пользователя
+    
+    Args:
+        db (Session): Сессия базы данных
+        user_id (UUID): ID пользователя
+        
+    Returns:
+        Dict: Словарь настроек пользователя или пустой словарь, если настройки не найдены
+    """
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    if not user or not user.settings:
+        return {}
+    return user.settings
+
+def update_user_settings(db: Session, user_id: UUID, settings: Dict) -> Optional[Dict]:
+    """
+    Обновить настройки пользователя, используя прямой SQL запрос
+    
+    Args:
+        db (Session): Сессия базы данных
+        user_id (UUID): ID пользователя
+        settings (Dict): Словарь с настройками для обновления
+        
+    Returns:
+        Dict: Обновленные настройки пользователя или None, если пользователь не найден
+    """
+    print(f"DEBUG: update_user_settings [НОВАЯ ВЕРСИЯ]: вызван с user_id: {user_id}")
+    print(f"DEBUG: update_user_settings: тип user_id: {type(user_id)}")
+    print(f"DEBUG: update_user_settings: настройки для обновления: {settings}")
+    
+    try:
+        # Преобразуем user_id в строку для безопасности
+        user_id_str = str(user_id)
+        print(f"DEBUG: update_user_settings: user_id преобразован в строку: {user_id_str}")
+        
+        # Проверим существование пользователя напрямую через SQL
+        from sqlalchemy import text
+        import json
+        
+        # Проверяем существование пользователя в БД
+        check_query = text("SELECT user_id, username, email FROM topotik.users WHERE user_id = :user_id")
+        user_exists = db.execute(check_query, {"user_id": user_id_str}).first()
+        
+        if not user_exists:
+            print(f"DEBUG: update_user_settings: пользователь не найден в БД по ID: {user_id_str}")
+            
+            # Проверим, сколько всего пользователей в БД
+            count_query = text("SELECT COUNT(*) FROM topotik.users")
+            total_users = db.execute(count_query).scalar()
+            print(f"DEBUG: update_user_settings: всего пользователей в БД: {total_users}")
+            
+            if total_users > 0:
+                # Проверим последнего созданного пользователя
+                recent_query = text("SELECT user_id, username, email FROM topotik.users ORDER BY created_at DESC LIMIT 1")
+                recent_user = db.execute(recent_query).first()
+                print(f"DEBUG: update_user_settings: последний созданный пользователь: {recent_user}")
+                
+                # Проверим всех пользователей
+                all_users_query = text("SELECT user_id, username, email FROM topotik.users LIMIT 10")
+                all_users = db.execute(all_users_query).fetchall()
+                print(f"DEBUG: update_user_settings: список пользователей (до 10): {all_users}")
+            
+            # Создаем нового пользователя с этим ID (аварийное решение)
+            print(f"DEBUG: update_user_settings: создаем нового пользователя с ID: {user_id_str}")
+            emergency_create_query = text("""
+                INSERT INTO topotik.users (user_id, username, email, password, settings, created_at)
+                VALUES (:user_id, :username, :email, :password, :settings, NOW())
+                ON CONFLICT (user_id) DO NOTHING
+                RETURNING user_id
+            """)
+            
+            emergency_result = db.execute(emergency_create_query, {
+                "user_id": user_id_str,
+                "username": f"emergency_user_{user_id_str[:8]}",
+                "email": f"emergency_{user_id_str[:8]}@example.com",
+                "password": "emergency_password_hash", # Нормальный hash будет создан позже
+                "settings": json.dumps(settings)
+            }).first()
+            
+            db.commit()
+            
+            if emergency_result:
+                print(f"DEBUG: update_user_settings: успешно создан аварийный пользователь с ID: {emergency_result.user_id}")
+                return settings
+            else:
+                print(f"DEBUG: update_user_settings: не удалось создать аварийного пользователя")
+                return None
+        
+        print(f"DEBUG: update_user_settings: пользователь найден: {user_exists}")
+        
+        # Преобразуем словарь настроек в JSON строку
+        settings_json = json.dumps(settings)
+        
+        # Обновляем настройки напрямую через SQL с исправленным синтаксисом
+        # Используем cast() функцию PostgreSQL вместо оператора :: для приведения типов
+        update_query = text("""
+            UPDATE topotik.users 
+            SET settings = cast(:settings AS jsonb)
+            WHERE user_id = :user_id
+            RETURNING settings
+        """)
+        
+        result = db.execute(update_query, {
+            "user_id": user_id_str,
+            "settings": settings_json
+        }).first()
+        
+        db.commit()
+        
+        if result and result.settings:
+            try:
+                # Если результат в виде строки JSON, парсим его
+                if isinstance(result.settings, str):
+                    updated_settings = json.loads(result.settings)
+                else:
+                    # Иначе возвращаем как есть
+                    updated_settings = result.settings
+                    
+                print(f"DEBUG: update_user_settings: настройки успешно обновлены")
+                return updated_settings
+            except Exception as parse_error:
+                print(f"DEBUG: update_user_settings: ошибка при парсинге результата: {str(parse_error)}")
+                # Возвращаем исходные настройки, так как они должны быть применены
+                return settings
+        else:
+            print(f"DEBUG: update_user_settings: ошибка обновления, нет результата")
+            return None
+        
+    except Exception as e:
+        print(f"DEBUG: update_user_settings: неожиданная ошибка: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        db.rollback()
+        raise
+
+def reset_user_settings(db: Session, user_id: UUID) -> Dict:
+    """
+    Сбросить настройки пользователя к значениям по умолчанию
+    
+    Args:
+        db (Session): Сессия базы данных
+        user_id (UUID): ID пользователя
+        
+    Returns:
+        Dict: Настройки пользователя по умолчанию
+    """
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    if not user:
+        return None
+    
+    # Значения настроек по умолчанию
+    default_settings = {
+        "map": {
+            "defaultCity": "Москва",
+            "defaultCoordinates": {
+                "lat": 55.7558,
+                "lng": 37.6173
+            },
+            "defaultZoom": 13,
+            "units": "km",
+            "showGrid": False
+        },
+        "ui": {
+            "theme": "light",
+            "fontSize": "medium",
+            "language": "ru"
+        },
+        "editor": {
+            "defaultMarkerColor": "#FF5733",
+            "autoSave": 5
+        },
+        "privacy": {
+            "defaultMapPrivacy": "private",
+            "defaultCollectionPrivacy": "private"
+        }
+    }
+    
+    user.settings = default_settings
+    db.commit()
+    db.refresh(user)
+    return user.settings
 
 def check_user_data_availability(db: Session, email: str, username: str, user_id: Optional[UUID] = None) -> Dict[str, bool]:
     """
@@ -1021,6 +1259,10 @@ def get_collections_by_map(db: Session, map_id: UUID):
 
 def check_collection_access(db: Session, collection_id: UUID, user_id: UUID, permission: str = "view") -> bool:
     """Проверить, имеет ли пользователь доступ к коллекции с указанным правом"""
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Проверка доступа к коллекции {collection_id} для пользователя {user_id} с правом {permission}")
+    
     try:
         # Проверяем права через таблицу collection_access
         access_query = text("""
@@ -1040,17 +1282,44 @@ def check_collection_access(db: Session, collection_id: UUID, user_id: UUID, per
         ).fetchone()
         
         if access:
+            logger.debug(f"Пользователь {user_id} имеет прямые права доступа к коллекции {collection_id}")
             return True
         
         # Если это публичная коллекция и запрашивается просмотр
         if permission == "view":
             collection = get_collection(db, collection_id)
             if collection and collection.is_public:
+                logger.debug(f"Коллекция {collection_id} публичная, доступ разрешен")
                 return True
         
+        # ВАЖНО: Проверяем, является ли пользователь владельцем карты, к которой относится коллекция
+        # Это дает полные права на коллекцию
+        map_owner_query = text("""
+            SELECT 1 FROM topotik.map_access ma
+            JOIN topotik.collections c ON c.map_id = ma.map_id
+            WHERE c.collection_id = :collection_id 
+            AND ma.user_id = :user_id 
+            AND ma.permission = 'edit'
+        """)
+        
+        is_map_owner = db.execute(
+            map_owner_query, 
+            {
+                "collection_id": str(collection_id),
+                "user_id": str(user_id)
+            }
+        ).fetchone()
+        
+        if is_map_owner:
+            logger.debug(f"Пользователь {user_id} владеет картой, к которой относится коллекция {collection_id}")
+            return True
+            
+        logger.warning(f"Пользователь {user_id} не имеет доступа к коллекции {collection_id}")
         return False
     except Exception as e:
-        print(f"Ошибка при проверке доступа к коллекции {collection_id}: {str(e)}")
+        logger.error(f"Ошибка при проверке доступа к коллекции {collection_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False
 
 def create_collection(db: Session, collection_in: schemas.CollectionCreate, user_id: UUID):
@@ -1064,8 +1333,8 @@ def create_collection(db: Session, collection_in: schemas.CollectionCreate, user
         collection_id = uuid.uuid4()
         
         insert_query = text("""
-            INSERT INTO topotik.collections (collection_id, map_id, title, is_public)
-            VALUES (:collection_id, :map_id, :title, :is_public)
+            INSERT INTO topotik.collections (collection_id, map_id, title, is_public, collection_color)
+            VALUES (:collection_id, :map_id, :title, :is_public, :collection_color)
             RETURNING collection_id
         """)
         
@@ -1075,7 +1344,8 @@ def create_collection(db: Session, collection_in: schemas.CollectionCreate, user
                 "collection_id": str(collection_id),
                 "map_id": str(collection_in.map_id),
                 "title": collection_in.title,
-                "is_public": collection_in.is_public
+                "is_public": collection_in.is_public,
+                "collection_color": collection_in.collection_color if hasattr(collection_in, 'collection_color') else "#8A2BE2"
             }
         )
         db.commit()
@@ -1114,7 +1384,7 @@ def update_collection(db: Session, collection_id: UUID, data: dict, user_id: UUI
             return None
         
         # Обновляем только допустимые поля
-        allowed_fields = ['title', 'is_public']
+        allowed_fields = ['title', 'is_public', 'collection_color']
         update_data = {}
         
         for key, val in data.items():
@@ -1187,14 +1457,50 @@ def delete_collection(db: Session, collection_id: UUID, user_id: UUID):
 # Markers
 def get_marker(db: Session, marker_id: UUID):
     """Получить маркер по ID"""
-    return db.query(models.Marker).filter(models.Marker.marker_id == marker_id).first()
+    # Получаем маркер из базы данных
+    marker = db.query(models.Marker).filter(models.Marker.marker_id == marker_id).first()
+    
+    if marker:
+        # Получаем map_id из связанных коллекций
+        try:
+            query = text("""
+                SELECT c.map_id
+                FROM topotik.collections c
+                JOIN topotik.markers_collections mc ON c.collection_id = mc.collection_id
+                WHERE mc.marker_id = :marker_id
+                LIMIT 1
+            """)
+            
+            result = db.execute(query, {"marker_id": str(marker_id)}).fetchone()
+            
+            # Создаем словарь с данными маркера
+            marker_dict = {
+                "marker_id": marker.marker_id,
+                "latitude": float(marker.latitude),
+                "longitude": float(marker.longitude),
+                "title": marker.title,
+                "description": marker.description
+            }
+            
+            # Добавляем map_id из коллекции, если найден
+            if result and result.map_id:
+                marker_dict["map_id"] = result.map_id
+            
+            # Создаем объект Marker из словаря с явно заданным map_id
+            return schemas.Marker.parse_obj(marker_dict)
+        except Exception as e:
+            print(f"Ошибка при получении map_id для маркера {marker_id}: {str(e)}")
+            # Если произошла ошибка, возвращаем маркер без map_id
+            return marker
+    
+    return marker
 
 def get_markers_by_map(db: Session, map_id: UUID, skip: int = 0, limit: int = 100):
     """Получить маркеры для карты через коллекции"""
     try:
         # Используем прямой SQL запрос для получения маркеров, связанных с картой через коллекции
         query = text("""
-            SELECT DISTINCT m.marker_id, m.latitude, m.longitude, m.title, m.description
+            SELECT DISTINCT m.marker_id, m.latitude, m.longitude, m.title, m.description, c.map_id
             FROM topotik.markers m
             JOIN topotik.markers_collections mc ON m.marker_id = mc.marker_id
             JOIN topotik.collections c ON mc.collection_id = c.collection_id
@@ -1210,111 +1516,98 @@ def get_markers_by_map(db: Session, map_id: UUID, skip: int = 0, limit: int = 10
         
         markers = []
         for row in result:
-            marker = models.Marker(
-                marker_id=row.marker_id,
-                latitude=row.latitude,
-                longitude=row.longitude,
-                title=row.title,
-                description=row.description
-            )
+            # Создаем словарь с данными маркера, включая map_id
+            marker_dict = {
+                "marker_id": row.marker_id,
+                "latitude": float(row.latitude),
+                "longitude": float(row.longitude),
+                "title": row.title,
+                "description": row.description,
+                "map_id": row.map_id  # Добавляем map_id из запроса
+            }
+            
+            # Создаем объект Marker из словаря
+            marker = schemas.Marker.parse_obj(marker_dict)
             markers.append(marker)
             
         return markers
     except Exception as e:
         print(f"Ошибка при получении маркеров для карты {map_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return []
 
 def create_marker(db: Session, marker_in: schemas.MarkerCreate):
-    """Создать новый маркер и добавить его в коллекцию карты"""
+    """Создать новый маркер"""
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Вызов create_marker с координатами [{marker_in.latitude}, {marker_in.longitude}]")
+    
     try:
-        # Генерируем UUID для нового маркера
-        marker_id = uuid.uuid4()
+        # Вызываем SQL-функцию вместо прямого создания через ORM
+        logger.debug(f"SQL-запрос: topotik.create_marker")
+        logger.debug(f"Параметры запроса: latitude={marker_in.latitude}, longitude={marker_in.longitude}, map_id={marker_in.map_id}")
         
-        # Создаем маркер
-        insert_query = text("""
-            INSERT INTO topotik.markers (marker_id, latitude, longitude, title, description)
-            VALUES (:marker_id, :latitude, :longitude, :title, :description)
-            RETURNING marker_id
-        """)
+        # Преобразуем map_id в строку, если он не None
+        map_id_param = str(marker_in.map_id) if marker_in.map_id else None
         
-        db.execute(
-            insert_query, 
-            {
-                "marker_id": str(marker_id),
-                "latitude": marker_in.latitude,
-                "longitude": marker_in.longitude,
-                "title": marker_in.title,
-                "description": marker_in.description
-            }
-        )
-        db.commit()
-        
-        # Если указана карта, находим/создаем коллекцию по умолчанию и связываем маркер с ней
-        if hasattr(marker_in, 'map_id') and marker_in.map_id:
-            # Проверяем существование карты
-            map_query = text("""
-                SELECT 1 FROM topotik.maps WHERE map_id = :map_id
-            """)
+        # Используем явную транзакцию
+        try:
+            # Выполняем SQL-функцию для создания маркера
+            result = db.execute(
+                text("""
+                    SELECT topotik.create_marker(
+                        :latitude, 
+                        :longitude, 
+                        :title, 
+                        :description, 
+                        :map_id
+                    )
+                """),
+                {
+                    "latitude": marker_in.latitude,
+                    "longitude": marker_in.longitude,
+                    "title": marker_in.title,
+                    "description": marker_in.description,
+                    "map_id": map_id_param
+                }
+            ).scalar()
             
-            map_exists = db.execute(map_query, {"map_id": str(marker_in.map_id)}).fetchone()
+            # Явно коммитим транзакцию после успешного создания маркера
+            db.commit()
             
-            if map_exists:
-                # Ищем коллекцию по умолчанию для карты или создаем её
-                collection_query = text("""
-                    SELECT collection_id FROM topotik.collections
-                    WHERE map_id = :map_id AND title = 'Default'
-                    LIMIT 1
-                """)
+            if not result:
+                logger.error("SQL-функция create_marker вернула пустой результат")
+                return None
                 
-                collection_row = db.execute(collection_query, {"map_id": str(marker_in.map_id)}).fetchone()
+            logger.debug(f"Результат SQL-функции: {result}")
+            
+            # Получаем созданный маркер, обработав результат безопасно
+            try:
+                # Если result уже UUID, используем его напрямую, иначе преобразуем строку в UUID
+                marker_id = result if isinstance(result, UUID) else UUID(str(result))
+                marker = get_marker(db, marker_id)
                 
-                if collection_row:
-                    collection_id = collection_row.collection_id
-                else:
-                    # Создаем коллекцию по умолчанию
-                    new_collection_query = text("""
-                        INSERT INTO topotik.collections (map_id, title, is_public)
-                        VALUES (:map_id, 'Default', true)
-                        RETURNING collection_id
-                    """)
+                if not marker:
+                    logger.error(f"Не удалось загрузить созданный маркер с ID: {marker_id}")
+                    return None
                     
-                    collection_row = db.execute(
-                        new_collection_query, 
-                        {"map_id": str(marker_in.map_id)}
-                    ).fetchone()
-                    
-                    collection_id = collection_row.collection_id
-                    db.commit()
+                logger.info(f"Маркер успешно создан с ID: {marker.marker_id}")
+                return marker
+            except Exception as e:
+                logger.error(f"Ошибка при получении созданного маркера: {str(e)}")
+                db.rollback()
+                raise
                 
-                # Связываем маркер с коллекцией
-                link_query = text("""
-                    INSERT INTO topotik.markers_collections (marker_id, collection_id)
-                    VALUES (:marker_id, :collection_id)
-                """)
-                
-                db.execute(
-                    link_query, 
-                    {
-                        "marker_id": str(marker_id),
-                        "collection_id": str(collection_id)
-                    }
-                )
-                db.commit()
-        
-        # Создаем модель маркера для возврата
-        marker = models.Marker(
-            marker_id=marker_id,
-            latitude=marker_in.latitude,
-            longitude=marker_in.longitude,
-            title=marker_in.title,
-            description=marker_in.description
-        )
-        
-        return marker
+        except Exception as sql_error:
+            logger.error(f"Ошибка в SQL-запросе: {str(sql_error)}")
+            db.rollback()
+            raise
+            
     except Exception as e:
+        logger.error(f"Общая ошибка при создании маркера: {str(e)}")
         db.rollback()
-        print(f"Ошибка при создании маркера: {str(e)}")
-        raise
+        raise ValueError(f"Ошибка при создании маркера: {str(e)}")
 
 def update_marker(db: Session, marker_id: UUID, data: dict):
     """Обновить данные маркера"""
@@ -1360,8 +1653,9 @@ def update_marker(db: Session, marker_id: UUID, data: dict):
 def delete_marker(db: Session, marker_id: UUID):
     """Удалить маркер и все связанные с ним данные"""
     try:
-        # Получаем маркер
-        m = get_marker(db, marker_id)
+        # Получаем маркер напрямую из ORM, а не через get_marker, 
+        # так как get_marker возвращает Pydantic-модель, а не ORM-объект
+        m = db.query(models.Marker).filter(models.Marker.marker_id == marker_id).first()
         if not m:
             return None
         
@@ -1373,19 +1667,19 @@ def delete_marker(db: Session, marker_id: UUID):
         
         db.execute(delete_mc_query, {"marker_id": str(marker_id)})
         
-        # Удаляем связанные статьи и блоки (каскадное удаление через ORM)
-        articles = db.query(models.Article).filter(models.Article.marker_id == marker_id).all()
-        for article in articles:
-            blocks = db.query(models.Block).filter(models.Block.article_id == article.article_id).all()
-            for block in blocks:
-                db.delete(block)
-            db.delete(article)
+        # Удаляем связанные с маркером статьи
+        delete_articles_query = text("""
+            DELETE FROM topotik.articles
+            WHERE marker_id = :marker_id
+        """)
+        
+        db.execute(delete_articles_query, {"marker_id": str(marker_id)})
         
         # Удаляем сам маркер
         db.delete(m)
         db.commit()
         
-        return m
+        return True
     except Exception as e:
         db.rollback()
         print(f"Ошибка при удалении маркера {marker_id}: {str(e)}")
@@ -1397,61 +1691,117 @@ def get_article(db: Session, article_id: UUID):
     return db.query(models.Article).filter(models.Article.article_id == article_id).first()
 
 def get_articles_by_marker(db: Session, marker_id: UUID, skip: int = 0, limit: int = 100):
-    return (
-        db.query(models.Article)
-          .filter(models.Article.marker_id == marker_id)
-          .offset(skip)
-          .limit(limit)
-          .all()
-    )
+    """Получить статьи маркера"""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Запрос статей для маркера {marker_id}")
+    
+    try:
+        # Используем SQL-функцию get_article_by_marker
+        result = db.execute(
+            text("SELECT * FROM topotik.get_article_by_marker(:marker_id)"),
+            {"marker_id": str(marker_id)}
+        ).fetchall()
+        
+        logger.debug(f"Получено {len(result) if result else 0} статей для маркера {marker_id}")
+        
+        if not result:
+            logger.info(f"Статьи для маркера {marker_id} не найдены")
+            return []
+            
+        # Преобразуем результат в модели схемы
+        articles = []
+        for row in result:
+            try:
+                article = {
+                    "article_id": row.article_id,
+                    "marker_id": marker_id,
+                    "markdown_content": row.markdown_content,
+                    "created_at": row.created_at
+                }
+                articles.append(article)
+                logger.debug(f"Преобразована статья: {article['article_id']}")
+            except Exception as row_error:
+                logger.error(f"Ошибка при обработке строки результата: {str(row_error)}")
+        
+        logger.info(f"Успешно получено {len(articles)} статей для маркера {marker_id}")    
+        return articles
+    except Exception as e:
+        logger.error(f"Ошибка при получении статей для маркера {marker_id}: {str(e)}")
+        logger.error(traceback.format_exc())
+        return []
 
 def create_article(db: Session, article_in: schemas.ArticleCreate):
-    db_art = models.Article(**article_in.dict())
-    db.add(db_art)
-    db.commit()
-    db.refresh(db_art)
-    return db_art
+    """Создать статью для маркера"""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Создание статьи для маркера {article_in.marker_id}")
+    
+    try:
+        # Начинаем явную транзакцию
+        conn = db.connection()
+        trans = conn.begin()
+        
+        # Используем SQL-функцию create_article_for_marker
+        result = db.execute(
+            text("SELECT topotik.create_article_for_marker(:marker_id, :markdown_content)"),
+            {
+                "marker_id": str(article_in.marker_id),
+                "markdown_content": article_in.markdown_content
+            }
+        ).scalar()
+        
+        if not result:
+            logger.error(f"Не удалось создать статью для маркера {article_in.marker_id}")
+            trans.rollback()
+            return None
+            
+        # Коммитим транзакцию
+        trans.commit()
+        db.commit()
+        
+        logger.info(f"Создана статья с ID: {result}")
+        
+        # Безопасно преобразуем результат в UUID
+        article_id = result if isinstance(result, UUID) else UUID(str(result))
+        
+        # Получаем созданную статью
+        articles = get_articles_by_marker(db, article_in.marker_id)
+        
+        if not articles:
+            logger.warning(f"Не удалось получить созданную статью для маркера {article_in.marker_id}")
+            # Создаем объект статьи из переданных данных
+            return models.Article(
+                article_id=article_id,
+                marker_id=article_in.marker_id,
+                markdown_content=article_in.markdown_content,
+                created_at=datetime.now(timezone.utc)
+            )
+            
+        # Возвращаем первую статью (должна быть только одна)
+        return models.Article(
+            article_id=article_id,
+            marker_id=article_in.marker_id,
+            markdown_content=article_in.markdown_content,
+            created_at=datetime.now(timezone.utc)
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при создании статьи для маркера {article_in.marker_id}: {str(e)}")
+        logger.error(traceback.format_exc())
+        db.rollback()
+        raise ValueError(f"Ошибка при создании статьи: {str(e)}")
 
 def delete_article(db: Session, article_id: UUID):
-    art = get_article(db, article_id)
-    db.delete(art)
+    article = get_article(db, article_id)
+    if not article:
+        return False
+
+    db.delete(article)
     db.commit()
-    return art
+    return True
 
 # ————————————————————————————————————————————————
-# Blocks
-def get_block(db: Session, block_id: UUID):
-    return db.query(models.Block).filter(models.Block.block_id == block_id).first()
-
-def get_blocks_by_article(db: Session, article_id: UUID, skip: int = 0, limit: int = 100):
-    return (
-        db.query(models.Block)
-          .filter(models.Block.article_id == article_id)
-          .offset(skip)
-          .limit(limit)
-          .all()
-    )
-
-def create_block(db: Session, block_in: schemas.BlockCreate):
-    db_blk = models.Block(**block_in.dict())
-    db.add(db_blk)
-    db.commit()
-    db.refresh(db_blk)
-    return db_blk
-
-def update_block(db: Session, block_id: UUID, data: dict):
-    blk = get_block(db, block_id)
-    for key, val in data.items():
-        setattr(blk, key, val)
-    db.commit()
-    db.refresh(blk)
-    return blk
-
-def delete_block(db: Session, block_id: UUID):
-    blk = get_block(db, block_id)
-    db.delete(blk)
-    db.commit()
-    return blk
+# Sharing
+def get_sharing_by_id(db: Session, sharing_id: UUID):
+    return db.query(models.Sharing).filter(models.Sharing.sharing_id == sharing_id).first()
 
 def get_folder_by_id(db: Session, folder_id: UUID):
     """

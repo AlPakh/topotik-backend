@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import (
-    Column, String, Text, Enum, ForeignKey, DateTime, Integer, DECIMAL, Table, Boolean
+    Column, String, Text, Enum, ForeignKey, DateTime, Integer, DECIMAL, Table, Boolean, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID, BYTEA
 from sqlalchemy.orm import relationship
@@ -9,7 +9,6 @@ from app.database import Base
 
 MapTypeEnum = Enum('osm', 'custom_image', name='map_type_enum', schema='topotik')
 AccessLevelEnum = Enum('private', 'link', 'public', name='access_level_enum', schema='topotik')
-BlockTypeEnum = Enum('text', 'image', 'video', 'link', name='block_type_enum', schema='topotik')
 ResourceTypeEnum = Enum('map', 'collection', 'folder', name='resource_type_enum', schema='topotik')
 PermissionLevelEnum = Enum('view', 'edit', name='permission_level_enum', schema='topotik')
 PermissionEnum = Enum('view', 'edit', name='permission_enum', schema='topotik')
@@ -22,6 +21,7 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     password = Column(String(255), nullable=False)
+    settings = Column(JSON, nullable=True, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     images = relationship("Image", back_populates="owner")
@@ -95,6 +95,7 @@ class Collection(Base):
     map_id = Column(UUID(as_uuid=True), ForeignKey("topotik.maps.map_id"), nullable=False)
     title = Column(String(100), nullable=False)
     is_public = Column(Boolean, nullable=False, default=False)
+    collection_color = Column(String(20), nullable=True, default="#8A2BE2")
 
     map = relationship("Map", back_populates="collections")
     markers = relationship("Marker", secondary=markers_collections, back_populates="collections")
@@ -135,19 +136,6 @@ class Article(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     marker = relationship("Marker", back_populates="articles")
-    blocks = relationship("Block", back_populates="article", cascade="all, delete-orphan")
-
-class Block(Base):
-    __tablename__ = "blocks"
-    __table_args__ = {'schema': 'topotik'}
-    
-    block_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=func.gen_random_uuid())
-    article_id = Column(UUID(as_uuid=True), ForeignKey("topotik.articles.article_id"), nullable=False)
-    type = Column(BlockTypeEnum, nullable=False)
-    content = Column(Text)
-    order = Column(Integer)
-
-    article = relationship("Article", back_populates="blocks")
 
 class Sharing(Base):
     __tablename__ = "sharing"

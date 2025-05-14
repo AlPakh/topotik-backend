@@ -1,8 +1,12 @@
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from enum import Enum
+import logging
+
+# Настройка логирования
+logger = logging.getLogger(__name__)
 
 # ————————————————————————————————————————————————
 class Token(BaseModel):
@@ -24,6 +28,7 @@ class UserCreate(UserBase):
 class User(UserBase):
     user_id: UUID
     created_at: Optional[datetime] = None
+    settings: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
@@ -32,6 +37,10 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None
     password: Optional[str] = None
+    settings: Optional[Dict[str, Any]] = None
+
+class UserSettings(BaseModel):
+    settings: Dict[str, Any]
 
 class UserAvailabilityCheck(BaseModel):
     email: str
@@ -130,6 +139,7 @@ class CollectionBase(BaseModel):
     title: str
     map_id: UUID
     is_public: bool = False
+    collection_color: Optional[str] = "#8A2BE2"
 
 class CollectionCreate(CollectionBase):
     pass
@@ -161,19 +171,52 @@ class MarkerBase(BaseModel):
     longitude: float
     title: Optional[str] = None
     description: Optional[str] = None
+    map_id: Optional[UUID] = None  # Виртуальное поле, заполняемое динамически из связанной коллекции
+
+    @model_validator(mode='after')
+    def log_marker_fields(self):
+        """Логирует поля маркера для отладки"""
+        logger.debug(f"Создание/валидация объекта Marker со значениями: {self.model_dump()}")
+        if hasattr(self, 'map_id') and self.map_id is not None:
+            logger.debug(f"map_id присутствует: {self.map_id}, тип: {type(self.map_id)}")
+        else:
+            logger.debug("map_id отсутствует или None")
+        return self
 
 class MarkerCreate(MarkerBase):
-    map_id: UUID  # Привязка к карте через коллекцию
+    pass
 
 class Marker(MarkerBase):
     marker_id: UUID
 
+    @field_validator('map_id', mode='before')
+    @classmethod
+    def validate_map_id(cls, v):
+        """Валидирует map_id, преобразуя его из строки в UUID при необходимости"""
+        logger.debug(f"Валидация map_id: {v}, тип: {type(v)}")
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                result = UUID(v)
+                logger.debug(f"map_id преобразован из строки в UUID: {result}")
+                return result
+            except ValueError as e:
+                logger.error(f"Ошибка преобразования map_id из строки в UUID: {e}")
+                raise
+        return v
+
     class Config:
         from_attributes = True
+        # Явно указываем, что поле map_id может заполняться из источников, отличных от атрибутов модели
+        populate_by_name = True
+        # Дополнительный флаг для работы с произвольными типами
+        arbitrary_types_allowed = True
 
 # ————————————————————————————————————————————————
 class ArticleBase(BaseModel):
     marker_id: UUID
+    markdown_content: Optional[str] = None
 
 class ArticleCreate(ArticleBase):
     pass
@@ -181,22 +224,6 @@ class ArticleCreate(ArticleBase):
 class Article(ArticleBase):
     article_id: UUID
     created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-# ————————————————————————————————————————————————
-class BlockBase(BaseModel):
-    article_id: UUID
-    type: str
-    content: Optional[str]
-    order: Optional[int]
-
-class BlockCreate(BlockBase):
-    pass
-
-class Block(BlockBase):
-    block_id: UUID
 
     class Config:
         from_attributes = True

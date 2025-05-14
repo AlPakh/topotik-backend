@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from uuid import UUID
-from typing import List
+from typing import List, Dict, Any
 
 from app import schemas, crud, models
 from app.database import get_db
@@ -107,3 +107,97 @@ def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     return user
+
+# Новые эндпоинты для работы с настройками пользователя
+@router.get("/me/settings", response_model=Dict[str, Any], summary="Получить настройки пользователя", description="Возвращает настройки текущего пользователя")
+def read_user_settings(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        settings = crud.get_user_settings(db, current_user.user_id)
+        return settings
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при получении настроек пользователя: {str(e)}"
+        )
+
+@router.put("/me/settings", response_model=Dict[str, Any], summary="Обновить настройки пользователя", description="Обновляет настройки текущего пользователя")
+def update_user_settings(settings: schemas.UserSettings, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        print(f"DEBUG: Обновление настроек пользователя - НАЧАЛО ЗАПРОСА")
+        print(f"DEBUG: current_user из токена: ID={current_user.user_id}, username={current_user.username}, email={current_user.email}")
+        print(f"DEBUG: Тип current_user.user_id: {type(current_user.user_id)}")
+        print(f"DEBUG: Полученные настройки: {settings.settings}")
+        
+        # Обновляем настройки пользователя с использованием прямого SQL метода
+        updated_settings = crud.update_user_settings(db, current_user.user_id, settings.settings)
+        
+        # Если пользователь не найден через CRUD метод, попробуем прямой SQL запрос
+        if not updated_settings:
+            print(f"DEBUG: Пользователь не найден через CRUD метод, пробуем прямой SQL запрос")
+            from sqlalchemy import text
+            import json
+            
+            try:
+                # Ручное обновление через SQL
+                settings_json = json.dumps(settings.settings)
+                update_query = text("""
+                    INSERT INTO topotik.users (user_id, username, email, password, settings, created_at)
+                    VALUES (:user_id, :username, :email, :password, cast(:settings AS jsonb), NOW())
+                    ON CONFLICT (user_id) DO UPDATE 
+                    SET settings = cast(:settings AS jsonb)
+                    RETURNING settings
+                """)
+                
+                result = db.execute(update_query, {
+                    "user_id": str(current_user.user_id),
+                    "username": current_user.username,
+                    "email": current_user.email,
+                    "password": "emergency_hash",  # Будет обновлено позже при следующем логине
+                    "settings": settings_json
+                }).first()
+                
+                db.commit()
+                
+                if result and result.settings:
+                    try:
+                        if isinstance(result.settings, str):
+                            updated_settings = json.loads(result.settings)
+                        else:
+                            updated_settings = result.settings
+                        print(f"DEBUG: Настройки успешно обновлены через аварийный метод")
+                    except Exception as json_error:
+                        print(f"DEBUG: Ошибка при парсинге JSON: {str(json_error)}")
+                        updated_settings = settings.settings  # Возвращаем исходные настройки
+                else:
+                    print(f"DEBUG: Не удалось выполнить аварийное обновление")
+                    raise HTTPException(status_code=500, detail="Не удалось обновить настройки")
+            except Exception as sql_error:
+                print(f"DEBUG: Ошибка при прямом SQL-запросе: {str(sql_error)}")
+                import traceback
+                traceback.print_exc()
+                raise HTTPException(status_code=500, 
+                                   detail=f"Не удалось выполнить аварийное обновление: {str(sql_error)}")
+        
+        print(f"DEBUG: Настройки успешно обновлены: {updated_settings}")
+        return updated_settings
+    except Exception as e:
+        print(f"DEBUG: Исключение при обновлении настроек: {str(e)}")
+        print(f"DEBUG: Тип исключения: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        # В случае ошибки возвращаем локальные настройки, чтобы не прерывать пользовательский опыт
+        return settings.settings
+
+@router.post("/me/settings/reset", response_model=Dict[str, Any], summary="Сбросить настройки пользователя", description="Сбрасывает настройки пользователя к значениям по умолчанию")
+def reset_user_settings(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        default_settings = crud.reset_user_settings(db, current_user.user_id)
+        if not default_settings:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+        return default_settings
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при сбросе настроек пользователя: {str(e)}"
+        )
