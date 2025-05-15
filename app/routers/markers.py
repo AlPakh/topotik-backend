@@ -112,42 +112,12 @@ def create_marker(marker_in: schemas.MarkerCreate, db: Session = Depends(get_db)
             }
             logger.debug(f"Итоговый маркер с map_id: {json.dumps({k: str(v) for k, v in new_marker_dict.items()})}")
             
-            # Добавляем маркер в коллекцию, если он был создан успешно
-            if new_marker.marker_id and marker_in.map_id:
-                # Проверяем, существует ли коллекция для этой карты
-                collections_query = text("""
-                    SELECT collection_id FROM topotik.collections
-                    WHERE map_id = :map_id 
-                    LIMIT 1
-                """)
-                
-                collection_result = db.execute(
-                    collections_query, 
-                    {"map_id": str(marker_in.map_id)}
-                ).fetchone()
-                
-                # Если коллекция найдена, добавляем маркер в неё
-                if collection_result:
-                    collection_id = collection_result.collection_id
-                    logger.debug(f"Добавляем маркер {new_marker.marker_id} в коллекцию {collection_id}")
-                    
-                    insert_query = text("""
-                        INSERT INTO topotik.markers_collections (marker_id, collection_id)
-                        VALUES (:marker_id, :collection_id)
-                        ON CONFLICT DO NOTHING
-                    """)
-                    
-                    db.execute(
-                        insert_query, 
-                        {
-                            "marker_id": str(new_marker.marker_id),
-                            "collection_id": str(collection_id)
-                        }
-                    )
-                    db.commit()
-                    logger.info(f"Маркер {new_marker.marker_id} добавлен в коллекцию {collection_id}")
-                else:
-                    logger.warning(f"Не найдена коллекция для карты {marker_in.map_id}")
+            # Закомментировано автоматическое добавление маркера в коллекцию по умолчанию
+            # Теперь клиент должен явно указать, в какую коллекцию добавить маркер
+            # через отдельный запрос к эндпоинту /collections/{collection_id}/markers
+            # ---
+            # Блок, который добавлял маркер в первую коллекцию карты, был здесь
+            # ---
             
             # Возвращаем маркер с явно установленным map_id
             # С учетом разных версий Pydantic

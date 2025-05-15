@@ -941,11 +941,38 @@ def remove_map_from_all_folders(db: Session, map_id: UUID) -> bool:
 
 # ————————————————————————————————————————————————
 # Auth
-def authenticate_user(db: Session, username: str, password: str):
-    user = get_user_by_username(db, username)
-    if not user or not pwd_context.verify(password, user.password):
+def authenticate_user(db: Session, username_or_email: str, password: str):
+    try:
+        # Проверяем, является ли введенное значение email (содержит @)
+        is_email = '@' in username_or_email
+        print(f"DEBUG: authenticate_user: идентификатор пользователя: {username_or_email}, распознан как {'email' if is_email else 'username'}")
+        
+        user = None
+        if is_email:
+            user = get_user_by_email(db, username_or_email)
+            print(f"DEBUG: authenticate_user: поиск по email: {username_or_email}, результат: {'найден' if user else 'не найден'}")
+        else:
+            user = get_user_by_username(db, username_or_email)
+            print(f"DEBUG: authenticate_user: поиск по username: {username_or_email}, результат: {'найден' if user else 'не найден'}")
+        
+        if not user:
+            print(f"DEBUG: authenticate_user: пользователь не найден")
+            return False
+        
+        # Проверяем пароль
+        password_valid = pwd_context.verify(password, user.password)
+        print(f"DEBUG: authenticate_user: проверка пароля для {user.username}: {'успешно' if password_valid else 'неудачно'}")
+        
+        if not password_valid:
+            return False
+        
+        print(f"DEBUG: authenticate_user: успешная аутентификация пользователя {user.username} (ID: {user.user_id})")
+        return user
+    except Exception as e:
+        print(f"DEBUG: authenticate_user: ошибка при аутентификации: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
-    return user
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -1544,6 +1571,10 @@ def create_marker(db: Session, marker_in: schemas.MarkerCreate):
     logger.info(f"Вызов create_marker с координатами [{marker_in.latitude}, {marker_in.longitude}]")
     
     try:
+        # Предупреждение о автоматическом добавлении в коллекцию "Без категории"
+        logger.warning(f"ВНИМАНИЕ: Маркер будет автоматически добавлен в коллекцию 'Без категории' из-за логики SQL-функции create_marker в базе данных")
+        logger.warning(f"Если нужно добавить маркер в другую коллекцию, необходимо удалить его из коллекции 'Без категории' после создания")
+        
         # Вызываем SQL-функцию вместо прямого создания через ORM
         logger.debug(f"SQL-запрос: topotik.create_marker")
         logger.debug(f"Параметры запроса: latitude={marker_in.latitude}, longitude={marker_in.longitude}, map_id={marker_in.map_id}")
@@ -1581,6 +1612,27 @@ def create_marker(db: Session, marker_in: schemas.MarkerCreate):
                 return None
                 
             logger.debug(f"Результат SQL-функции: {result}")
+            
+            # Проверяем, в какие коллекции был добавлен маркер
+            try:
+                marker_id = result if isinstance(result, UUID) else UUID(str(result))
+                collections_query = text("""
+                    SELECT c.collection_id, c.title, c.map_id
+                    FROM topotik.markers_collections mc
+                    JOIN topotik.collections c ON mc.collection_id = c.collection_id
+                    WHERE mc.marker_id = :marker_id
+                """)
+                
+                collections = db.execute(collections_query, {"marker_id": str(marker_id)}).fetchall()
+                
+                if collections:
+                    logger.info(f"Маркер был автоматически добавлен в следующие коллекции:")
+                    for coll in collections:
+                        logger.info(f"- Коллекция '{coll.title}' (ID: {coll.collection_id})")
+                else:
+                    logger.warning(f"Маркер не был добавлен ни в одну коллекцию, что необычно")
+            except Exception as e:
+                logger.error(f"Ошибка при получении коллекций маркера: {str(e)}")
             
             # Получаем созданный маркер, обработав результат безопасно
             try:

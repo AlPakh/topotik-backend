@@ -244,21 +244,67 @@ def add_marker_to_collection(
                 detail="Маркер не найден"
             )
         
+        # Удаляем маркер из всех других коллекций, принадлежащих к той же карте
+        try:
+            # Получаем map_id текущей коллекции
+            map_id_query = text("""
+                SELECT map_id FROM topotik.collections
+                WHERE collection_id = :collection_id
+            """)
+            map_id_result = db.execute(map_id_query, {"collection_id": str(collection_id)}).fetchone()
+            
+            if map_id_result:
+                map_id = map_id_result.map_id
+                
+                # Получаем все коллекции этой карты
+                collections_query = text("""
+                    SELECT collection_id FROM topotik.collections
+                    WHERE map_id = :map_id AND collection_id != :collection_id
+                """)
+                collections = db.execute(
+                    collections_query, 
+                    {"map_id": str(map_id), "collection_id": str(collection_id)}
+                ).fetchall()
+                
+                # Удаляем маркер из всех других коллекций этой карты
+                if collections:
+                    collection_ids = [str(row.collection_id) for row in collections]
+                    collection_ids_str = ",".join([f"'{cid}'" for cid in collection_ids])
+                    
+                    delete_query = text(f"""
+                        DELETE FROM topotik.markers_collections
+                        WHERE marker_id = :marker_id 
+                        AND collection_id IN ({collection_ids_str})
+                    """)
+                    
+                    db.execute(delete_query, {"marker_id": str(marker_id)})
+                    db.commit()
+                    
+                    logger.info(f"Маркер {marker_id} удален из других коллекций карты {map_id}")
+        except Exception as e:
+            logger.error(f"Ошибка при удалении маркера из других коллекций: {str(e)}")
+            logger.error(traceback.format_exc())
+            # Продолжаем выполнение, даже если не удалось удалить из других коллекций
+        
         # Добавляем маркер в коллекцию
         success = db.execute(
             text("SELECT topotik.add_marker_to_collection(:marker_id, :collection_id)"),
             {"marker_id": str(marker_id), "collection_id": str(collection_id)}
         ).scalar()
         
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Не удалось добавить маркер в коллекцию"
-            )
-            
-        return {"success": True, "message": "Маркер успешно добавлен в коллекцию"}
+        db.commit()
         
+        return {"success": True, "message": "Маркер успешно добавлен в коллекцию"}
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
+        db.rollback()
+        logger.error(f"Ошибка при добавлении маркера в коллекцию: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при добавлении маркера в коллекцию: {str(e)}"
@@ -328,57 +374,99 @@ def move_marker_between_collections(
     user_id: UUID = Depends(get_user_id_from_token)
 ):
     """Переместить маркер из одной коллекции в другую"""
-    logger.info(f"Запрос на перемещение маркера {marker_id} из коллекции {source_collection_id} в коллекцию {target_collection_id}")
-    
     try:
-        # Проверяем доступ к исходной коллекции
+        # Проверка существования исходной коллекции
+        source_collection = crud.get_collection(db, source_collection_id)
+        if not source_collection:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Исходная коллекция не найдена"
+            )
+        
+        # Проверка существования целевой коллекции
+        target_collection = crud.get_collection(db, target_collection_id)
+        if not target_collection:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Целевая коллекция не найдена"
+            )
+        
+        # Проверка доступа к исходной коллекции
         if not crud.check_collection_access(db, source_collection_id, user_id, "edit"):
-            logger.warning(f"У пользователя {user_id} нет прав на редактирование исходной коллекции {source_collection_id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Недостаточно прав для редактирования исходной коллекции"
             )
         
-        # Проверяем доступ к целевой коллекции
+        # Проверка доступа к целевой коллекции
         if not crud.check_collection_access(db, target_collection_id, user_id, "edit"):
-            logger.warning(f"У пользователя {user_id} нет прав на редактирование целевой коллекции {target_collection_id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Недостаточно прав для редактирования целевой коллекции"
             )
         
-        # Вызываем SQL-функцию для перемещения маркера
-        result = db.execute(
+        # Проверка существования маркера в исходной коллекции
+        if not db.execute(
             text("""
-                SELECT topotik.move_marker_between_collections(
-                    :marker_id, 
-                    :source_collection_id, 
-                    :target_collection_id
-                )
+                SELECT 1 FROM topotik.markers_collections
+                WHERE marker_id = :marker_id AND collection_id = :collection_id
             """),
-            {
-                "marker_id": str(marker_id),
-                "source_collection_id": str(source_collection_id),
-                "target_collection_id": str(target_collection_id)
-            }
+            {"marker_id": str(marker_id), "collection_id": str(source_collection_id)}
+        ).fetchone():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Маркер не найден в исходной коллекции"
+            )
+        
+        # Убедимся, что коллекции принадлежат одной карте
+        if source_collection.map_id != target_collection.map_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Исходная и целевая коллекции должны принадлежать одной карте"
+            )
+        
+        # Удаляем маркер из всех коллекций той же карты
+        map_id = source_collection.map_id
+        
+        # Получаем все коллекции этой карты
+        collections_query = text("""
+            SELECT collection_id FROM topotik.collections
+            WHERE map_id = :map_id AND collection_id != :target_collection_id
+        """)
+        collections = db.execute(
+            collections_query, 
+            {"map_id": str(map_id), "target_collection_id": str(target_collection_id)}
+        ).fetchall()
+        
+        # Удаляем маркер из всех коллекций, кроме целевой
+        if collections:
+            collection_ids = [str(row.collection_id) for row in collections]
+            collection_ids_str = ",".join([f"'{cid}'" for cid in collection_ids])
+            
+            delete_query = text(f"""
+                DELETE FROM topotik.markers_collections
+                WHERE marker_id = :marker_id 
+                AND collection_id IN ({collection_ids_str})
+            """)
+            
+            db.execute(delete_query, {"marker_id": str(marker_id)})
+            
+            logger.info(f"Маркер {marker_id} удален из всех коллекций карты {map_id}, кроме целевой")
+        
+        # Добавляем маркер в целевую коллекцию
+        success = db.execute(
+            text("SELECT topotik.add_marker_to_collection(:marker_id, :collection_id)"),
+            {"marker_id": str(marker_id), "collection_id": str(target_collection_id)}
         ).scalar()
         
-        # Явный коммит транзакции
         db.commit()
         
-        if result:
-            logger.info(f"Маркер {marker_id} успешно перемещен из коллекции {source_collection_id} в коллекцию {target_collection_id}")
-            return {"success": True, "message": "Маркер успешно перемещен"}
-        else:
-            logger.error(f"Не удалось переместить маркер {marker_id}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Не удалось переместить маркер"
-            )
+        return {"success": True, "message": "Маркер успешно перемещен между коллекциями"}
     except Exception as e:
-        logger.error(f"Ошибка при перемещении маркера: {str(e)}")
         db.rollback()
+        logger.error(f"Ошибка при перемещении маркера между коллекциями: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка при перемещении маркера: {str(e)}"
+            detail=f"Ошибка при перемещении маркера между коллекциями: {str(e)}"
         )

@@ -16,6 +16,16 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+    class Config:
+        # Добавляем конфигурацию для более гибкой валидации
+        orm_mode = True
+        schema_extra = {
+            "example": {
+                "username": "user@example.com или username",
+                "password": "password123"
+            }
+        }
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
@@ -67,9 +77,20 @@ def login(
     login_data: LoginRequest,
     db: Session = Depends(get_db)
 ):
-    user = crud.authenticate_user(db, login_data.username, login_data.password)
+    # Отладочная печать полученных данных
+    print(f"DEBUG: Полученные данные логина: {login_data.dict()}")
+    
+    # Проверяем, является ли username email-адресом или логином
+    username_or_email = login_data.username
+    print(f"DEBUG: Проверяем авторизацию для: {username_or_email}")
+    
+    user = crud.authenticate_user(db, username_or_email, login_data.password)
+    
     if not user:
+        print(f"DEBUG: Аутентификация не удалась для: {username_or_email}")
         raise HTTPException(status_code=401, detail="Неверные учетные данные")
+    
+    print(f"DEBUG: Успешная аутентификация пользователя: {user.username}")
     
     access_token = crud.create_access_token({"user_id": str(user.user_id)})
     
