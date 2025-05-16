@@ -122,7 +122,7 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
                 
                 # Добавляем IP в ответ для диагностики
                 data["client_ip"] = client_ip
-            
+                
                 # Кэшируем результат
                 location_cache[cache_key] = {
                     "data": data,
@@ -155,4 +155,4 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
         default_response["client_ip"] = client_ip if 'client_ip' in locals() else "неизвестен"
         default_response["error"] = True
         default_response["error_details"] = f"Непредвиденная ошибка: {str(e)}"
-        return default_response 
+        return default_response
