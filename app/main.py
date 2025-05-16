@@ -19,18 +19,31 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Topotik API")
-# CORS
+
+# Настройка списка разрешенных источников для CORS
+allowed_origins = [
+    "https://topotik-frontend.onrender.com",  # продакшен фронтенд
+    "https://topotik.onrender.com",           # альтернативный домен
+    "http://localhost:8080",                  # локальная разработка фронтенда
+    "http://localhost:5173",                  # альтернативный порт локальной разработки
+]
+
+# CORS настройки
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"]    # Для скачивания файлов
 )
+
+logger.info(f"API запущен с настройками CORS для следующих источников: {allowed_origins}")
 
 @app.on_event("startup")
 def on_startup():
     init_db()
+    logger.info("База данных инициализирована")
 
 @app.get("/")
 def read_root():
