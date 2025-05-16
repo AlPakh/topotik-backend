@@ -44,16 +44,42 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
         # Получаем IP-адрес пользователя из запроса
         client_ip = request.client.host
         
+        # Определяем реальный IP, учитывая возможные прокси
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        real_ip = request.headers.get("X-Real-IP")
+        
+        # Выводим отладочную информацию
+        logging.info(f"Client IP from request: {client_ip}")
+        logging.info(f"X-Forwarded-For header: {forwarded_for}")
+        logging.info(f"X-Real-IP header: {real_ip}")
+        
+        # Используем X-Forwarded-For или X-Real-IP, если они доступны
+        if forwarded_for:
+            # X-Forwarded-For может содержать несколько IP, берем первый (самый левый)
+            client_ip = forwarded_for.split(',')[0].strip()
+            logging.info(f"Using IP from X-Forwarded-For: {client_ip}")
+        elif real_ip:
+            client_ip = real_ip
+            logging.info(f"Using IP from X-Real-IP: {client_ip}")
+        
         async with httpx.AsyncClient(timeout=10.0) as client:
             # Проверяем есть ли валидный кэш для этого запроса
             cache_key = client_ip  # Используем реальный IP клиента как ключ кэша
             
             if cache_key in location_cache and location_cache[cache_key]["expires_at"] > datetime.now():
                 # Используем кэшированные данные
+                logging.info(f"Using cached data for IP: {client_ip}")
                 return location_cache[cache_key]["data"]
             
+            # Формируем URL для запроса к api.ipapi.is
+            api_url = f"https://api.ipapi.is/?q={client_ip}"
+            logging.info(f"Making request to: {api_url}")
+            
             # Делаем запрос к api.ipapi.is с указанием IP пользователя
-            response = await client.get(f"https://api.ipapi.is/?q={client_ip}")
+            response = await client.get(api_url)
+            
+            # Логируем статус ответа
+            logging.info(f"API response status: {response.status_code}")
             
             if response.status_code != 200:
                 # Логируем проблему
@@ -62,6 +88,7 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
                                     detail=f"Ошибка получения данных геолокации от api.ipapi.is: {response.text}")
             
             data = response.json()
+            logging.info(f"Received response data: {str(data)[:200]}...")  # Логируем первые 200 символов
             
             # Кэшируем результат
             location_cache[cache_key] = {
