@@ -51,7 +51,7 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
         client_ip = request.client.host
         logging.info(f"Initial client IP from request.client.host: {client_ip}")
         
-        # Определяем реальный IP, учитывая возможные прокси
+        # Определяем IP, учитывая возможные прокси (без фильтрации)
         forwarded_for = request.headers.get("X-Forwarded-For")
         real_ip = request.headers.get("X-Real-IP")
         cf_connecting_ip = request.headers.get("CF-Connecting-IP")  # Cloudflare
@@ -60,7 +60,7 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
         logging.info(f"X-Real-IP header: {real_ip}")
         logging.info(f"CF-Connecting-IP header: {cf_connecting_ip}")
         
-        # Используем заголовки для определения реального IP
+        # Используем заголовки для определения IP, принимаем любой IP без фильтрации
         if forwarded_for:
             client_ip = forwarded_for.split(',')[0].strip()
             logging.info(f"Using IP from X-Forwarded-For: {client_ip}")
@@ -71,14 +71,8 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
             client_ip = cf_connecting_ip
             logging.info(f"Using IP from CF-Connecting-IP: {client_ip}")
             
-        # Проверяем, является ли IP локальным
-        is_local_ip = client_ip in ['127.0.0.1', 'localhost', '::1'] or client_ip.startswith('192.168.') or client_ip.startswith('10.')
-        logging.info(f"Is local IP: {is_local_ip}")
-        
-        # Если IP локальный, просто возвращаем фиксированный ответ
-        if is_local_ip:
-            logging.info(f"Returning fixed response for local IP: {client_ip}")
-            return DEFAULT_LOCATION
+        # Используем любой полученный IP, даже если он выглядит как локальный
+        logging.info(f"Final client IP to use for geolocation: {client_ip}")
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             # Проверяем есть ли валидный кэш для этого запроса
@@ -86,16 +80,14 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
             
             if cache_key in location_cache and location_cache[cache_key]["expires_at"] > datetime.now():
                 logging.info(f"Using cached data for IP: {client_ip}")
-                return location_cache[cache_key]["data"]
+                # Добавляем IP в ответ для диагностики
+                cached_response = location_cache[cache_key]["data"]
+                cached_response["client_ip"] = client_ip
+                return cached_response
             
             # Формируем URL для запроса к api.ipapi.is
             api_url = f"https://api.ipapi.is/?q={client_ip}"
             logging.info(f"Making request to: {api_url}")
-            
-            # Вместо клиентского IP, который может быть локальным, используем публичный
-            if is_local_ip:
-                logging.info("IP is local, returning fixed response")
-                return DEFAULT_LOCATION
             
             # Делаем запрос к api.ipapi.is с указанием IP пользователя
             response = await client.get(api_url)
@@ -107,8 +99,12 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
             if response.status_code != 200:
                 # Логируем проблему
                 logging.error(f"Ошибка получения данных геолокации: {response.status_code} - {response.text}")
-                raise HTTPException(status_code=response.status_code, 
-                                    detail=f"Ошибка получения данных геолокации от api.ipapi.is: {response.text}")
+                # Возвращаем данные по умолчанию при ошибке и добавляем IP в ответ
+                default_response = DEFAULT_LOCATION.copy()
+                default_response["client_ip"] = client_ip
+                default_response["error"] = True
+                default_response["error_details"] = f"API вернул статус {response.status_code}: {response.text}"
+                return default_response
             
             try:
                 data = response.json()
@@ -118,7 +114,14 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
                 # Проверяем, есть ли ключевые поля в ответе
                 if 'location' not in data or 'city' not in data.get('location', {}):
                     logging.warning("Missing location data in API response, returning fixed response")
-                    return DEFAULT_LOCATION
+                    default_response = DEFAULT_LOCATION.copy()
+                    default_response["client_ip"] = client_ip
+                    default_response["error"] = True
+                    default_response["error_details"] = "Ответ API не содержит необходимых данных о местоположении"
+                    return default_response
+                
+                # Добавляем IP в ответ для диагностики
+                data["client_ip"] = client_ip
                 
                 # Кэшируем результат
                 location_cache[cache_key] = {
@@ -129,15 +132,27 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
                 return data
             except json.JSONDecodeError:
                 logging.error(f"Invalid JSON in API response: {response.text}")
-                raise HTTPException(status_code=500, detail="Некорректный ответ от сервиса геолокации")
+                default_response = DEFAULT_LOCATION.copy()
+                default_response["client_ip"] = client_ip
+                default_response["error"] = True
+                default_response["error_details"] = "Некорректный JSON в ответе API"
+                return default_response
             
     except httpx.RequestError as e:
         # Обрабатываем ошибки соединения
         logging.error(f"Ошибка соединения при запросе геолокации: {str(e)}")
-        raise HTTPException(status_code=503, detail=f"Сервис геолокации недоступен: {str(e)}")
+        default_response = DEFAULT_LOCATION.copy()
+        default_response["client_ip"] = client_ip if 'client_ip' in locals() else "неизвестен"
+        default_response["error"] = True
+        default_response["error_details"] = f"Ошибка соединения: {str(e)}"
+        return default_response
         
     except Exception as e:
         # Общая обработка других ошибок
         logging.error(f"Непредвиденная ошибка при запросе геолокации: {str(e)}")
         logging.exception(e)  # Логируем полный стектрейс
-        raise HTTPException(status_code=500, detail=f"Ошибка при обработке запроса геолокации: {str(e)}") 
+        default_response = DEFAULT_LOCATION.copy()
+        default_response["client_ip"] = client_ip if 'client_ip' in locals() else "неизвестен"
+        default_response["error"] = True
+        default_response["error_details"] = f"Непредвиденная ошибка: {str(e)}"
+        return default_response 
