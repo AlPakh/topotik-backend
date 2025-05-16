@@ -10,3 +10,4 @@ pydantic-settings
 python-multipart
 boto3==1.28.39      # AWS SDK для Python, включает S3
 python-multipart    # Для загрузки файлов
+httpx==0.23.3

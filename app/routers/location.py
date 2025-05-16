@@ -1,5 +1,5 @@
 import httpx
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from app.routers.auth import get_current_user
 from app.database import get_db
 from sqlalchemy.orm import Session
@@ -9,36 +9,57 @@ from datetime import datetime, timedelta
 
 router = APIRouter(tags=["location"])
 
-# Создаем простой кэш для результатов геолокации, чтобы снизить нагрузку на ipapi.co
+# Создаем простой кэш для результатов геолокации, чтобы снизить нагрузку на API
 # Структура: {"ip_address": {"data": {...}, "expires_at": datetime}}
 location_cache = {}
 CACHE_EXPIRY = timedelta(hours=24)  # Кэш действует 24 часа
 
-@router.get("/geoip", summary="Получить местоположение по IP", description="Проксирует запрос к ipapi.co и возвращает данные о местоположении пользователя")
-async def get_location_by_ip(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+# Данные о местоположении по умолчанию (Санкт-Петербург)
+DEFAULT_LOCATION = {
+    "location": {
+        "is_eu_member": False,
+        "calling_code": "7",
+        "currency_code": "RUB",
+        "continent": "EU",
+        "country": "Russia",
+        "country_code": "RU",
+        "state": "Saint Petersburg",
+        "city": "Saint Petersburg",
+        "latitude": 59.9606739,
+        "longitude": 30.1586551,
+        "zip": "190000",
+        "timezone": "Europe/Moscow",
+        "local_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S+03:00"),
+        "local_time_unix": int(datetime.now().timestamp()),
+        "is_dst": False
+    }
+}
+
+@router.get("/geoip", summary="Получить местоположение по IP", description="Возвращает данные о местоположении пользователя")
+async def get_location_by_ip(request: Request, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """
-    Получает местоположение пользователя по IP через ipapi.co
+    Получает местоположение пользователя по IP через api.ipapi.is
     """
     try:
-        # Определяем IP пользователя (в реальном случае это был бы IP из запроса)
-        # В данном случае просто используем запрос к ipapi.co без указания IP
+        # Получаем IP-адрес пользователя из запроса
+        client_ip = request.client.host
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             # Проверяем есть ли валидный кэш для этого запроса
-            cache_key = "default_ip"  # В реальном приложении используйте IP клиента
+            cache_key = client_ip  # Используем реальный IP клиента как ключ кэша
             
             if cache_key in location_cache and location_cache[cache_key]["expires_at"] > datetime.now():
                 # Используем кэшированные данные
                 return location_cache[cache_key]["data"]
             
-            # Делаем запрос к ipapi.co
-            response = await client.get("https://ipapi.co/json/")
+            # Делаем запрос к api.ipapi.is с указанием IP пользователя
+            response = await client.get(f"https://api.ipapi.is/?q={client_ip}")
             
             if response.status_code != 200:
                 # Логируем проблему
                 logging.error(f"Ошибка получения данных геолокации: {response.status_code} - {response.text}")
                 raise HTTPException(status_code=response.status_code, 
-                                    detail=f"Ошибка получения данных геолокации от ipapi.co: {response.text}")
+                                    detail=f"Ошибка получения данных геолокации от api.ipapi.is: {response.text}")
             
             data = response.json()
             
