@@ -75,6 +75,11 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
         is_local_ip = client_ip in ['127.0.0.1', 'localhost', '::1'] or client_ip.startswith('192.168.') or client_ip.startswith('10.')
         logging.info(f"Is local IP: {is_local_ip}")
         
+        # Если IP локальный, просто возвращаем фиксированный ответ
+        if is_local_ip:
+            logging.info(f"Returning fixed response for local IP: {client_ip}")
+            return DEFAULT_LOCATION
+        
         async with httpx.AsyncClient(timeout=10.0) as client:
             # Проверяем есть ли валидный кэш для этого запроса
             cache_key = client_ip
@@ -90,7 +95,7 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
             # Вместо клиентского IP, который может быть локальным, используем публичный
             if is_local_ip:
                 logging.info("IP is local, returning fixed response")
-                return LOCAL_IP_RESPONSE
+                return DEFAULT_LOCATION
             
             # Делаем запрос к api.ipapi.is с указанием IP пользователя
             response = await client.get(api_url)
@@ -113,7 +118,7 @@ async def get_location_by_ip(request: Request, db: Session = Depends(get_db), cu
                 # Проверяем, есть ли ключевые поля в ответе
                 if 'location' not in data or 'city' not in data.get('location', {}):
                     logging.warning("Missing location data in API response, returning fixed response")
-                    return LOCAL_IP_RESPONSE
+                    return DEFAULT_LOCATION
                 
                 # Кэшируем результат
                 location_cache[cache_key] = {
