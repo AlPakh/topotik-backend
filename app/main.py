@@ -18,6 +18,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Создаем экземпляр FastAPI
 app = FastAPI(title="Topotik API")
 
 # Настройка списка разрешенных источников для CORS

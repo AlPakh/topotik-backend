@@ -9,7 +9,14 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 from uuid import UUID
 
-router = APIRouter(tags=["auth"])
+# Стандартный роутер без специальной настройки CORS
+router = APIRouter(
+    tags=["auth"],
+    responses={
+        404: {"description": "Endpoint не найден"}
+    }
+)
+
 # Используем функцию-фабрику вместо прямого доступа к sessionmaker
 get_db = database.get_db
 
