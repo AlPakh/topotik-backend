@@ -19,13 +19,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Topotik API")
-# CORS
+
+# Список разрешенных источников для CORS
+origins = [
+    "http://localhost:8080",  # Vue.js dev server
+    "http://localhost:8000",
+    "https://topotik-frontend.onrender.com",
+    "https://topotik-backend.onrender.com",
+]
+
+# CORS с явно указанными origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Content-Type", "Authorization"],
+    max_age=600,  # 10 минут кэширования preflight-запросов
 )
 
 @app.on_event("startup")
