@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.database import init_db
-from app.routers import auth, users, maps, collections, markers, folders
+from app.routers import auth, maps, markers, collections, folders, users, location, images
 
 # Настройка логирования
 logging.basicConfig(
@@ -37,11 +37,13 @@ def read_root():
     return {"message": "Hello, world!"}
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(maps.router, prefix="/maps", tags=["maps"])
-app.include_router(collections.router, prefix="/collections", tags=["collections"])
 app.include_router(markers.router, prefix="/markers", tags=["markers"])
+app.include_router(collections.router, prefix="/collections", tags=["collections"])
 app.include_router(folders.router, prefix="/folders", tags=["folders"])
+app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(location.router, prefix="/location", tags=["location"])
+app.include_router(images.router, prefix="/images", tags=["images"])
 
 # Обработчик необработанных исключений
 @app.exception_handler(Exception)

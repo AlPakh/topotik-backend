@@ -3,10 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List, Optional, Any
+import uuid
 
 from app import schemas, crud
 from app.database import get_db
-from app.routers.auth import get_user_id_from_token
+from app.routers.auth import get_user_id_from_token, get_current_user
+from app.services import image_service
 
 router = APIRouter(tags=["maps"])
 
@@ -120,3 +122,68 @@ def delete_map(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Карта не найдена или возникла ошибка при удалении"
         )
+
+@router.put("/{map_id}/background", response_model=schemas.MapResponse)
+def set_map_background_image(
+    map_id: uuid.UUID,
+    image_id: uuid.UUID,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Установка фонового изображения для карты"""
+    
+    # Проверяем, что изображение существует и принадлежит пользователю
+    try:
+        image = image_service.get_image(db, image_id)
+        if str(image["user_id"]) != str(current_user.user_id):
+            raise HTTPException(status_code=403, detail="Нет доступа к изображению")
+    except HTTPException as e:
+        if e.status_code == 404:
+            raise HTTPException(status_code=404, detail="Изображение не найдено")
+        raise e
+    
+    # Вызываем хранимую функцию для установки фонового изображения
+    db_cursor = db.connection().cursor()
+    try:
+        db_cursor.execute(
+            "SELECT topotik.set_map_background_image(%s, %s, %s)",
+            (str(current_user.user_id), str(map_id), str(image_id))
+        )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    # Возвращаем обновленную карту
+    map_data = crud.get_map(db, map_id)
+    if not map_data:
+        raise HTTPException(status_code=404, detail="Карта не найдена")
+    
+    return map_data
+
+@router.delete("/{map_id}/background", response_model=schemas.MapResponse)
+def clear_map_background_image(
+    map_id: uuid.UUID,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Удаление фонового изображения карты"""
+    
+    # Вызываем хранимую функцию для удаления фонового изображения
+    db_cursor = db.connection().cursor()
+    try:
+        db_cursor.execute(
+            "SELECT topotik.clear_map_background_image(%s, %s)",
+            (str(current_user.user_id), str(map_id))
+        )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    # Возвращаем обновленную карту
+    map_data = crud.get_map(db, map_id)
+    if not map_data:
+        raise HTTPException(status_code=404, detail="Карта не найдена")
+    
+    return map_data

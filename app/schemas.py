@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator, UUID4
 from enum import Enum
 import logging
 
@@ -63,6 +63,7 @@ class MapBase(BaseModel):
     title: str
     map_type: MapType
     is_public: bool = False
+    background_image_id: Optional[UUID4] = None
 
 class MapCreate(MapBase):
     folder_id: Optional[UUID] = None
@@ -232,3 +233,36 @@ class Article(ArticleBase):
 class GenericResponse(BaseModel):
     success: bool
     message: str
+
+# Схемы для работы с изображениями
+class ImageBase(BaseModel):
+    file_name: str
+    mime_type: str
+    file_size: int
+
+class ImageCreate(ImageBase):
+    pass
+
+class ImageResponse(ImageBase):
+    image_id: UUID4
+    s3_key: str
+    created_at: datetime
+    url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class ImageListResponse(BaseModel):
+    images: List[ImageResponse]
+
+class ImageDeleteResponse(BaseModel):
+    success: bool
+
+# ————————————————————————————————————————————————
+class MapResponse(MapBase):
+    map_id: UUID4
+    created_at: datetime
+    background_image_url: Optional[str] = None
+    
+    class Config:
+        from_attributes = True

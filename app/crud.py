@@ -3,7 +3,8 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from jose import jwt
-from app import models, schemas, config
+from app import models, schemas
+from app.settings import settings
 from typing import Optional, Dict, Any, List
 from sqlalchemy import text
 import uuid
@@ -14,9 +15,9 @@ import logging
 # Функции get_marker и get_markers_by_map теперь корректно заполняют это поле.
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = config.settings.SECRET_KEY
-ALGORITHM  = config.settings.ALGORITHM
-EXPIRE_MIN = config.settings.ACCESS_TOKEN_EXPIRE_MINUTES
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM  = settings.ALGORITHM
+EXPIRE_MIN = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 # ————————————————————————————————————————————————
 # User
@@ -1162,7 +1163,31 @@ def check_map_ownership(db: Session, map_id: UUID, user_id: UUID) -> bool:
         return False
 
 def get_map(db: Session, map_id: UUID):
-    return db.query(models.Map).filter(models.Map.map_id == map_id).first()
+    """Получить карту по ID с информацией о фоновом изображении"""
+    map_obj = db.query(models.Map).filter(models.Map.map_id == map_id).first()
+    
+    if map_obj and map_obj.background_image_id:
+        try:
+            # Получаем информацию о фоновом изображении из БД
+            result = db.execute(
+                text("""
+                    SELECT s3_key 
+                    FROM topotik.images 
+                    WHERE image_id = :image_id
+                """),
+                {"image_id": str(map_obj.background_image_id)}
+            ).fetchone()
+            
+            if result and result.s3_key:
+                # Импортируем функцию генерации URL
+                from app.services.image_service import get_image_url
+                # Добавляем URL изображения к объекту карты
+                setattr(map_obj, 'background_image_url', get_image_url(result.s3_key))
+        except Exception as e:
+            import logging
+            logging.error(f"Ошибка при получении URL фонового изображения: {str(e)}")
+    
+    return map_obj
 
 def update_map(db: Session, map_id: UUID, data: schemas.MapUpdate):
     """

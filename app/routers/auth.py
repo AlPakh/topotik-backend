@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.orm import Session
-from app import schemas, crud, database, config
+from app import schemas, crud, database
+from app.settings import settings
 from jose import JWTError, jwt
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from typing import Optional
@@ -39,6 +40,41 @@ def register(user: schemas.UserCreate, response: Response, db: Session = Depends
         raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
     
     new_user = crud.create_user(db, user)
+    
+    # Создаем настройки по умолчанию для нового пользователя
+    default_settings = {
+        "map": {
+            "units": "km",
+            "showGrid": False,
+            "defaultCity": "Saint Petersburg, Northwestern Federal District, Russia",
+            "defaultZoom": 13,
+            "defaultCoordinates": {
+                "lat": 59.9606739,
+                "lng": 30.1586551
+            }
+        },
+        "ui": {
+            "theme": "light",
+            "fontSize": "medium",
+            "language": "ru"
+        },
+        "editor": {
+            "defaultMarkerColor": "#FF5733",
+            "autoSave": 5  # автосохранение каждые 5 минут
+        },
+        "privacy": {
+            "defaultMapPrivacy": "private",
+            "defaultCollectionPrivacy": "private"
+        }
+    }
+    
+    try:
+        # Сохраняем настройки по умолчанию
+        crud.update_user_settings(db, new_user.user_id, default_settings)
+        print(f"Настройки по умолчанию созданы для пользователя {new_user.username}")
+    except Exception as e:
+        print(f"Ошибка при создании настроек по умолчанию: {str(e)}")
+        # Продолжаем выполнение, так как фронтенд имеет резервный механизм
     
     # Создаем токен
     access_token = crud.create_access_token({"user_id": str(new_user.user_id)})
@@ -133,7 +169,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 def decode_token(token: str):
     try:
         print(f"DEBUG: decode_token вызван с токеном: {token[:20]}...")
-        payload = jwt.decode(token, config.settings.SECRET_KEY, algorithms=[config.settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         print(f"DEBUG: decode_token: успешное декодирование, payload: {payload}")
         return payload
     except JWTError as e:

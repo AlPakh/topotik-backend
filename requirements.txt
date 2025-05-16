@@ -8,3 +8,5 @@ python-jose[cryptography]
 pydantic[email]
 pydantic-settings
 python-multipart
+boto3==1.28.39      # AWS SDK для Python, включает S3
+python-multipart    # Для загрузки файлов

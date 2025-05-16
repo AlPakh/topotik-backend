@@ -156,9 +156,10 @@ class Image(Base):
     
     image_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=func.gen_random_uuid())
     user_id = Column(UUID(as_uuid=True), ForeignKey("topotik.users.user_id"), nullable=False)
+    file_name = Column(String(255), nullable=False)
+    s3_key = Column(String(255), nullable=False)
     mime_type = Column(String(100), nullable=False)
-    file_size = Column(Integer)
-    data = Column(BYTEA, nullable=False)
+    file_size = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     owner = relationship("User", back_populates="images")

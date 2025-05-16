@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, Path
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List, Optional
-from pydantic import UUID4
 import uuid
 from sqlalchemy.sql import text
 import logging

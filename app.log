@@ -7884,3 +7884,386 @@ Traceback (most recent call last):
 AttributeError: module 'bcrypt' has no attribute '__about__'
 2025-05-15 18:29:30,113 - passlib.handlers.bcrypt - DEBUG - detected 'bcrypt' backend, version '<unknown>'
 2025-05-15 18:29:30,113 - passlib.handlers.bcrypt - DEBUG - 'bcrypt' backend lacks $2$ support, enabling workaround
+2025-05-15 18:36:29,401 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-05-15 18:36:29,402 - passlib.handlers.bcrypt - DEBUG - detected 'bcrypt' backend, version '<unknown>'
+2025-05-15 18:36:29,403 - passlib.handlers.bcrypt - DEBUG - 'bcrypt' backend lacks $2$ support, enabling workaround
+2025-05-15 18:36:29,773 - app.main - ERROR - Необработанное исключение при обработке POST http://localhost:8000/auth/register: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "users_username_key"
+DETAIL:  Key (username)=(Morris) already exists.
+
+[SQL: INSERT INTO topotik.users (user_id, username, email, password, settings) VALUES (%(user_id)s::UUID, %(username)s, %(email)s, %(password)s, %(settings)s::JSON) RETURNING topotik.users.created_at]
+[parameters: {'user_id': UUID('5a3aafbc-444d-47a7-af60-8eb823abfb9b'), 'username': 'Morris', 'email': 'vazazi@nini.ul', 'password': '$2b$12$xX/ilZy/sS7meRLdhs7ZaOXoGWrs83mZsS7yxvJVu5YZRyYV3muR.', 'settings': '{}'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-05-15 18:36:29,861 - app.main - ERROR - Traceback (most recent call last):
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1964, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 945, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "users_username_key"
+DETAIL:  Key (username)=(Morris) already exists.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\routing.py", line 714, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\routing.py", line 734, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\starlette\concurrency.py", line 37, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\anyio\to_thread.py", line 56, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 2470, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 967, in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\app\routers\auth.py", line 41, in register
+    new_user = crud.create_user(db, user)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\app\crud.py", line 35, in create_user
+    db.commit()  # Явно коммитим транзакцию
+    ^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1313, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1288, in _prepare_impl
+    self.session.flush()
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4353, in flush
+    self._flush(objects)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4488, in _flush
+    with util.safe_reraise():
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 146, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4449, in _flush
+    flush_context.execute()
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+             ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1638, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1843, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1983, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2352, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1964, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 945, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "users_username_key"
+DETAIL:  Key (username)=(Morris) already exists.
+
+[SQL: INSERT INTO topotik.users (user_id, username, email, password, settings) VALUES (%(user_id)s::UUID, %(username)s, %(email)s, %(password)s, %(settings)s::JSON) RETURNING topotik.users.created_at]
+[parameters: {'user_id': UUID('5a3aafbc-444d-47a7-af60-8eb823abfb9b'), 'username': 'Morris', 'email': 'vazazi@nini.ul', 'password': '$2b$12$xX/ilZy/sS7meRLdhs7ZaOXoGWrs83mZsS7yxvJVu5YZRyYV3muR.', 'settings': '{}'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+2025-05-15 18:37:28,546 - app.routers.collections - INFO - Запрос маркеров для коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93 от пользователя 593fc03b-3207-4ece-9dfd-a9897388d509
+2025-05-15 18:37:28,549 - app.routers.collections - DEBUG - Результат get_collection: <app.models.Collection object at 0x000001ACE7C0C350>
+2025-05-15 18:37:28,549 - app.crud - INFO - Проверка доступа к коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93 для пользователя 593fc03b-3207-4ece-9dfd-a9897388d509 с правом view
+2025-05-15 18:37:28,552 - app.crud - DEBUG - Пользователь 593fc03b-3207-4ece-9dfd-a9897388d509 владеет картой, к которой относится коллекция 1ec89e97-4c02-4ae6-9685-e4df897e6b93
+2025-05-15 18:37:28,552 - app.routers.collections - DEBUG - Результат проверки доступа: True
+2025-05-15 18:37:28,553 - app.routers.collections - DEBUG - Выполняем SQL запрос для получения маркеров коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93
+2025-05-15 18:37:28,561 - app.routers.collections - DEBUG - Получено 0 маркеров
+2025-05-15 18:37:28,561 - app.routers.collections - INFO - Успешно получены и преобразованы 0 маркеров для коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93
+2025-05-15 18:37:28,574 - app.routers.collections - INFO - Запрос маркеров для коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4 от пользователя 593fc03b-3207-4ece-9dfd-a9897388d509
+2025-05-15 18:37:28,577 - app.routers.collections - DEBUG - Результат get_collection: <app.models.Collection object at 0x000001ACE7C0CBF0>
+2025-05-15 18:37:28,577 - app.crud - INFO - Проверка доступа к коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4 для пользователя 593fc03b-3207-4ece-9dfd-a9897388d509 с правом view
+2025-05-15 18:37:28,580 - app.crud - DEBUG - Пользователь 593fc03b-3207-4ece-9dfd-a9897388d509 владеет картой, к которой относится коллекция 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4
+2025-05-15 18:37:28,580 - app.routers.collections - DEBUG - Результат проверки доступа: True
+2025-05-15 18:37:28,581 - app.routers.collections - DEBUG - Выполняем SQL запрос для получения маркеров коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4
+2025-05-15 18:37:28,582 - app.routers.collections - DEBUG - Получено 5 маркеров
+2025-05-15 18:37:28,582 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f'), 'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 18:37:28,583 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,583 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 18:37:28,583 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,583 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05'), 'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 18:37:28,584 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,584 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05')}
+2025-05-15 18:37:28,584 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,584 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4'), 'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 18:37:28,585 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,585 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4')}
+2025-05-15 18:37:28,585 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,585 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415'), 'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 18:37:28,586 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,586 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415')}
+2025-05-15 18:37:28,586 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,586 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31'), 'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 18:37:28,586 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,587 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31')}
+2025-05-15 18:37:28,587 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,587 - app.routers.collections - INFO - Успешно получены и преобразованы 5 маркеров для коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4
+2025-05-15 18:37:28,587 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 18:37:28,588 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,588 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05')}
+2025-05-15 18:37:28,588 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,588 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4')}
+2025-05-15 18:37:28,588 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,589 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415')}
+2025-05-15 18:37:28,589 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,589 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31')}
+2025-05-15 18:37:28,589 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,602 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,603 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 18:37:28,603 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,618 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,618 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05')}
+2025-05-15 18:37:28,619 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,633 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,633 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4')}
+2025-05-15 18:37:28,633 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,646 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,646 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415')}
+2025-05-15 18:37:28,647 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,659 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:28,659 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31')}
+2025-05-15 18:37:28,659 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:34,270 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:34,271 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 18:37:34,271 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:35,923 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:35,923 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415')}
+2025-05-15 18:37:35,923 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:38,084 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:38,086 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 18:37:38,086 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:42,221 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:37:42,222 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05')}
+2025-05-15 18:37:42,222 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:27,584 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.045379218331036, 'longitude': 30.444079546451114, 'title': 'Метка 1', 'description': 'Описание метки', 'map_id': UUID('93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc')}
+2025-05-15 18:41:27,585 - app.schemas - DEBUG - map_id присутствует: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:27,585 - app.routers.markers - INFO - Запрос на создание маркера от пользователя b3f3984d-256c-4429-9ca8-e5e757c4e8fd
+2025-05-15 18:41:27,585 - app.routers.markers - DEBUG - Данные маркера: {"latitude": 60.045379218331036, "longitude": 30.444079546451114, "title": "\u041c\u0435\u0442\u043a\u0430 1", "description": "\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043c\u0435\u0442\u043a\u0438", "map_id": "93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc"}
+2025-05-15 18:41:27,587 - app.routers.markers - DEBUG - Результат проверки доступа к карте 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc: True
+2025-05-15 18:41:27,588 - app.routers.markers - DEBUG - Вызываем crud.create_marker с параметрами: {"latitude": 60.045379218331036, "longitude": 30.444079546451114, "title": "\u041c\u0435\u0442\u043a\u0430 1", "description": "\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043c\u0435\u0442\u043a\u0438", "map_id": "93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc"}
+2025-05-15 18:41:27,588 - app.crud - INFO - Вызов create_marker с координатами [60.045379218331036, 30.444079546451114]
+2025-05-15 18:41:27,588 - app.crud - WARNING - ВНИМАНИЕ: Маркер будет автоматически добавлен в коллекцию 'Без категории' из-за логики SQL-функции create_marker в базе данных
+2025-05-15 18:41:27,588 - app.crud - WARNING - Если нужно добавить маркер в другую коллекцию, необходимо удалить его из коллекции 'Без категории' после создания
+2025-05-15 18:41:27,588 - app.crud - DEBUG - SQL-запрос: topotik.create_marker
+2025-05-15 18:41:27,588 - app.crud - DEBUG - Параметры запроса: latitude=60.045379218331036, longitude=30.444079546451114, map_id=93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc
+2025-05-15 18:41:27,592 - app.crud - DEBUG - Результат SQL-функции: b980c83b-6973-4613-9ca1-febf0f448380
+2025-05-15 18:41:27,594 - app.crud - INFO - Маркер был автоматически добавлен в следующие коллекции:
+2025-05-15 18:41:27,594 - app.crud - INFO - - Коллекция 'Без категории' (ID: 8ef7c524-ea67-46f5-8639-cc67c42f87bd)
+2025-05-15 18:41:27,596 - app.schemas - DEBUG - Валидация map_id: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:27,596 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.045379, 'longitude': 30.44408, 'title': 'Метка 1', 'description': 'Описание метки', 'map_id': UUID('93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc'), 'marker_id': UUID('b980c83b-6973-4613-9ca1-febf0f448380')}
+2025-05-15 18:41:27,596 - app.schemas - DEBUG - map_id присутствует: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:27,596 - app.crud - INFO - Маркер успешно создан с ID: b980c83b-6973-4613-9ca1-febf0f448380
+2025-05-15 18:41:27,596 - app.routers.markers - DEBUG - Созданный маркер: {'latitude': 60.045379, 'longitude': 30.44408, 'title': 'Метка 1', 'description': 'Описание метки', 'map_id': UUID('93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc'), 'marker_id': UUID('b980c83b-6973-4613-9ca1-febf0f448380')}
+2025-05-15 18:41:27,597 - app.routers.markers - DEBUG - Итоговый маркер с map_id: {"marker_id": "b980c83b-6973-4613-9ca1-febf0f448380", "latitude": "60.045379", "longitude": "30.44408", "title": "\u041c\u0435\u0442\u043a\u0430 1", "description": "\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043c\u0435\u0442\u043a\u0438", "map_id": "93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc"}
+2025-05-15 18:41:27,597 - app.schemas - DEBUG - Валидация map_id: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:27,597 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.045379, 'longitude': 30.44408, 'title': 'Метка 1', 'description': 'Описание метки', 'map_id': UUID('93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc'), 'marker_id': UUID('b980c83b-6973-4613-9ca1-febf0f448380')}
+2025-05-15 18:41:27,597 - app.schemas - DEBUG - map_id присутствует: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:27,597 - app.routers.markers - INFO - Маркер успешно создан с ID b980c83b-6973-4613-9ca1-febf0f448380
+2025-05-15 18:41:27,598 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.045379, 'longitude': 30.44408, 'title': 'Метка 1', 'description': 'Описание метки', 'map_id': UUID('93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc'), 'marker_id': UUID('b980c83b-6973-4613-9ca1-febf0f448380')}
+2025-05-15 18:41:27,598 - app.schemas - DEBUG - map_id присутствует: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:27,609 - app.crud - INFO - Проверка доступа к коллекции 8ef7c524-ea67-46f5-8639-cc67c42f87bd для пользователя b3f3984d-256c-4429-9ca8-e5e757c4e8fd с правом edit
+2025-05-15 18:41:27,609 - app.crud - DEBUG - Пользователь b3f3984d-256c-4429-9ca8-e5e757c4e8fd имеет прямые права доступа к коллекции 8ef7c524-ea67-46f5-8639-cc67c42f87bd
+2025-05-15 18:41:27,611 - app.schemas - DEBUG - Валидация map_id: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:27,611 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.045379, 'longitude': 30.44408, 'title': 'Метка 1', 'description': 'Описание метки', 'map_id': UUID('93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc'), 'marker_id': UUID('b980c83b-6973-4613-9ca1-febf0f448380')}
+2025-05-15 18:41:27,611 - app.schemas - DEBUG - map_id присутствует: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:27,626 - app.schemas - DEBUG - Валидация map_id: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:27,626 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.045379, 'longitude': 30.44408, 'title': 'Метка 1', 'description': 'Описание метки', 'map_id': UUID('93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc'), 'marker_id': UUID('b980c83b-6973-4613-9ca1-febf0f448380')}
+2025-05-15 18:41:27,626 - app.schemas - DEBUG - map_id присутствует: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:33,117 - app.schemas - DEBUG - Валидация map_id: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 18:41:33,117 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.045379, 'longitude': 30.44408, 'title': 'Метка 1', 'description': 'Описание метки', 'map_id': UUID('93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc'), 'marker_id': UUID('b980c83b-6973-4613-9ca1-febf0f448380')}
+2025-05-15 18:41:33,117 - app.schemas - DEBUG - map_id присутствует: 93cf3ebb-b2f7-43c5-87d0-d0b6099d90bc, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,762 - app.routers.collections - INFO - Запрос маркеров для коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93 от пользователя 593fc03b-3207-4ece-9dfd-a9897388d509
+2025-05-15 21:51:14,765 - app.routers.collections - DEBUG - Результат get_collection: <app.models.Collection object at 0x000001ACE7C4A5D0>
+2025-05-15 21:51:14,765 - app.crud - INFO - Проверка доступа к коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93 для пользователя 593fc03b-3207-4ece-9dfd-a9897388d509 с правом view
+2025-05-15 21:51:14,768 - app.crud - DEBUG - Пользователь 593fc03b-3207-4ece-9dfd-a9897388d509 владеет картой, к которой относится коллекция 1ec89e97-4c02-4ae6-9685-e4df897e6b93
+2025-05-15 21:51:14,769 - app.routers.collections - DEBUG - Результат проверки доступа: True
+2025-05-15 21:51:14,769 - app.routers.collections - DEBUG - Выполняем SQL запрос для получения маркеров коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93
+2025-05-15 21:51:14,771 - app.routers.collections - DEBUG - Получено 0 маркеров
+2025-05-15 21:51:14,771 - app.routers.collections - INFO - Успешно получены и преобразованы 0 маркеров для коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93
+2025-05-15 21:51:14,795 - app.routers.collections - INFO - Запрос маркеров для коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4 от пользователя 593fc03b-3207-4ece-9dfd-a9897388d509
+2025-05-15 21:51:14,797 - app.routers.collections - DEBUG - Результат get_collection: <app.models.Collection object at 0x000001ACE7C49940>
+2025-05-15 21:51:14,798 - app.crud - INFO - Проверка доступа к коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4 для пользователя 593fc03b-3207-4ece-9dfd-a9897388d509 с правом view
+2025-05-15 21:51:14,801 - app.crud - DEBUG - Пользователь 593fc03b-3207-4ece-9dfd-a9897388d509 владеет картой, к которой относится коллекция 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4
+2025-05-15 21:51:14,801 - app.routers.collections - DEBUG - Результат проверки доступа: True
+2025-05-15 21:51:14,802 - app.routers.collections - DEBUG - Выполняем SQL запрос для получения маркеров коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4
+2025-05-15 21:51:14,806 - app.routers.collections - DEBUG - Получено 5 маркеров
+2025-05-15 21:51:14,806 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f'), 'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 21:51:14,806 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,807 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 21:51:14,812 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,814 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05'), 'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 21:51:14,814 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,815 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05')}
+2025-05-15 21:51:14,815 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,815 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4'), 'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 21:51:14,816 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,816 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4')}
+2025-05-15 21:51:14,816 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,817 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415'), 'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 21:51:14,817 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,817 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415')}
+2025-05-15 21:51:14,818 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,818 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31'), 'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 21:51:14,818 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,819 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31')}
+2025-05-15 21:51:14,819 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,819 - app.routers.collections - INFO - Успешно получены и преобразованы 5 маркеров для коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4
+2025-05-15 21:51:14,820 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 21:51:14,820 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,821 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05')}
+2025-05-15 21:51:14,821 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,822 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4')}
+2025-05-15 21:51:14,822 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,823 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415')}
+2025-05-15 21:51:14,828 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,830 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31')}
+2025-05-15 21:51:14,830 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,842 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,844 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 21:51:14,844 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,864 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,864 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05')}
+2025-05-15 21:51:14,864 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,881 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,881 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4')}
+2025-05-15 21:51:14,881 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,917 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,917 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415')}
+2025-05-15 21:51:14,917 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,935 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 21:51:14,936 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31')}
+2025-05-15 21:51:14,936 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,827 - app.routers.collections - INFO - Запрос маркеров для коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93 от пользователя 593fc03b-3207-4ece-9dfd-a9897388d509
+2025-05-15 22:05:44,830 - app.routers.collections - DEBUG - Результат get_collection: <app.models.Collection object at 0x0000024286157D10>
+2025-05-15 22:05:44,830 - app.crud - INFO - Проверка доступа к коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93 для пользователя 593fc03b-3207-4ece-9dfd-a9897388d509 с правом view
+2025-05-15 22:05:44,833 - app.crud - DEBUG - Пользователь 593fc03b-3207-4ece-9dfd-a9897388d509 владеет картой, к которой относится коллекция 1ec89e97-4c02-4ae6-9685-e4df897e6b93
+2025-05-15 22:05:44,834 - app.routers.collections - DEBUG - Результат проверки доступа: True
+2025-05-15 22:05:44,834 - app.routers.collections - DEBUG - Выполняем SQL запрос для получения маркеров коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93
+2025-05-15 22:05:44,837 - app.routers.collections - DEBUG - Получено 0 маркеров
+2025-05-15 22:05:44,838 - app.routers.collections - INFO - Успешно получены и преобразованы 0 маркеров для коллекции 1ec89e97-4c02-4ae6-9685-e4df897e6b93
+2025-05-15 22:05:44,851 - app.routers.collections - INFO - Запрос маркеров для коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4 от пользователя 593fc03b-3207-4ece-9dfd-a9897388d509
+2025-05-15 22:05:44,853 - app.routers.collections - DEBUG - Результат get_collection: <app.models.Collection object at 0x00000242861747A0>
+2025-05-15 22:05:44,853 - app.crud - INFO - Проверка доступа к коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4 для пользователя 593fc03b-3207-4ece-9dfd-a9897388d509 с правом view
+2025-05-15 22:05:44,856 - app.crud - DEBUG - Пользователь 593fc03b-3207-4ece-9dfd-a9897388d509 владеет картой, к которой относится коллекция 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4
+2025-05-15 22:05:44,856 - app.routers.collections - DEBUG - Результат проверки доступа: True
+2025-05-15 22:05:44,857 - app.routers.collections - DEBUG - Выполняем SQL запрос для получения маркеров коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4
+2025-05-15 22:05:44,858 - app.routers.collections - DEBUG - Получено 5 маркеров
+2025-05-15 22:05:44,858 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f'), 'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 22:05:44,858 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,859 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 22:05:44,859 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,859 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05'), 'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 22:05:44,860 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,860 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05')}
+2025-05-15 22:05:44,860 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,862 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4'), 'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 22:05:44,862 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,863 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4')}
+2025-05-15 22:05:44,864 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,864 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415'), 'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 22:05:44,864 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,864 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415')}
+2025-05-15 22:05:44,865 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,865 - app.routers.collections - DEBUG - Обрабатываем маркер: {'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31'), 'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114')}
+2025-05-15 22:05:44,865 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,865 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31')}
+2025-05-15 22:05:44,866 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,866 - app.routers.collections - INFO - Успешно получены и преобразованы 5 маркеров для коллекции 1aa77cdc-f5d7-4a05-bcac-ccadc9c360c4
+2025-05-15 22:05:44,867 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 22:05:44,867 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,867 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05')}
+2025-05-15 22:05:44,868 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,868 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4')}
+2025-05-15 22:05:44,868 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,869 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415')}
+2025-05-15 22:05:44,869 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,873 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31')}
+2025-05-15 22:05:44,874 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,884 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,884 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.988009, 'longitude': 30.394412, 'title': 'У кладбища', 'description': 'Тут тихо', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3de22545-2b47-432d-a22e-9fe8e3590f6f')}
+2025-05-15 22:05:44,885 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,897 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,897 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.987312, 'longitude': 30.354205, 'title': 'Европолис', 'description': '1 и 3 этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f20f3a9b-6167-4b90-b523-a150c77ecb05')}
+2025-05-15 22:05:44,897 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,909 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,910 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.958062, 'longitude': 30.354544, 'title': 'ТЦ у вокзала', 'description': 'Очень запутанный вход', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('3735e760-8119-4cda-a792-157b807534e4')}
+2025-05-15 22:05:44,910 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,922 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,922 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 59.986651, 'longitude': 30.366933, 'title': 'Магнит', 'description': 'Второй этаж', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('f65a2458-249e-4e40-9971-6d3894654415')}
+2025-05-15 22:05:44,922 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,938 - app.schemas - DEBUG - Валидация map_id: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:05:44,939 - app.schemas - DEBUG - Создание/валидация объекта Marker со значениями: {'latitude': 60.012504, 'longitude': 30.39811, 'title': 'Метка 5', 'description': 'Описание метки', 'map_id': UUID('3ab3c459-ed5c-4f87-a8d8-fd97f049f114'), 'marker_id': UUID('a24ffe8d-2439-4243-b91a-108bf2ac8b31')}
+2025-05-15 22:05:44,940 - app.schemas - DEBUG - map_id присутствует: 3ab3c459-ed5c-4f87-a8d8-fd97f049f114, тип: <class 'uuid.UUID'>
+2025-05-15 22:17:05,317 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-05-15 22:17:05,334 - passlib.handlers.bcrypt - DEBUG - detected 'bcrypt' backend, version '<unknown>'
+2025-05-15 22:17:05,335 - passlib.handlers.bcrypt - DEBUG - 'bcrypt' backend lacks $2$ support, enabling workaround
+2025-05-15 22:32:17,692 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\Al Pakh\Desktop\topotik\topotik-backend\.venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-05-15 22:32:17,694 - passlib.handlers.bcrypt - DEBUG - detected 'bcrypt' backend, version '<unknown>'
+2025-05-15 22:32:17,695 - passlib.handlers.bcrypt - DEBUG - 'bcrypt' backend lacks $2$ support, enabling workaround
