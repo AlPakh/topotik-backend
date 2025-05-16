@@ -8,16 +8,12 @@ from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from uuid import UUID
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI
-from starlette.responses import JSONResponse
 
-# Создаем роутер с настройкой для обработки CORS запросов
+# Стандартный роутер без специальной настройки CORS
 router = APIRouter(
     tags=["auth"],
     responses={
-        404: {"description": "Endpoint не найден"},
-        405: {"description": "Метод не разрешен"}
+        404: {"description": "Endpoint не найден"}
     }
 )
 
@@ -44,11 +40,6 @@ class TokenResponse(BaseModel):
     username: str
     email: str
     user_id: str
-
-# Добавляем обработчик OPTIONS запросов для /register
-@router.options("/register")
-def register_options():
-    return {"detail": "Разрешено"}
 
 @router.post("/register", response_model=TokenResponse, summary="Регистрация нового пользователя", description="Создает нового пользователя с указанными данными, автоматически входит в систему и возвращает данные пользователя и токен авторизации.")
 def register(user: schemas.UserCreate, response: Response, db: Session = Depends(get_db)):
@@ -122,11 +113,6 @@ def register(user: schemas.UserCreate, response: Response, db: Session = Depends
         "email": new_user.email,
         "user_id": str(new_user.user_id)
     }
-
-# Добавляем обработчик OPTIONS запросов для /login
-@router.options("/login")
-def login_options():
-    return {"detail": "Разрешено"}
 
 @router.post("/login", response_model=TokenResponse, summary="Аутентификация пользователя", description="Проверяет учетные данные пользователя и возвращает JWT-токен для доступа к защищенным ресурсам.")
 def login(

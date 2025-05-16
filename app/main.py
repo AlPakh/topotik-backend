@@ -3,10 +3,6 @@ import sys
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from starlette.middleware.cors import CORSMiddleware as StaletteCORSMiddleware
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
-from starlette.responses import PlainTextResponse
-from starlette.requests import Request as StarletteRequest
 from app.database import init_db
 from app.routers import auth, maps, markers, collections, folders, users, location, images
 
@@ -25,44 +21,14 @@ logger = logging.getLogger(__name__)
 # Создаем экземпляр FastAPI
 app = FastAPI(title="Topotik API")
 
-# Список разрешенных источников для CORS
-origins = [
-    "http://localhost:8080",  # Vue.js dev server
-    "http://localhost:8000",
-    "https://topotik-frontend.onrender.com",
-    "https://topotik-backend.onrender.com",
-    "*"  # Временно разрешаем все источники для отладки
-]
-
-# CORS middleware (добавляем до включения маршрутов)
+# CORS настройки - упрощенная версия с разрешением всех источников
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Разрешаем все источники для отладки
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["Content-Type", "Authorization"],
-    max_age=600,  # 10 минут кэширования preflight-запросов
+    allow_methods=["*"],  # Разрешаем все методы
+    allow_headers=["*"],  # Разрешаем все заголовки
 )
-
-@app.middleware("http")
-async def cors_middleware(request: Request, call_next):
-    """
-    Собственный middleware для CORS, который явно обрабатывает все OPTIONS запросы
-    и добавляет нужные заголовки ответа
-    """
-    if request.method == "OPTIONS":
-        # Для preflight запросов возвращаем пустой ответ с нужными заголовками
-        response = JSONResponse(content={})
-        response.headers["Access-Control-Allow-Origin"] = "*"  # Или конкретные домены
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        response.headers["Access-Control-Max-Age"] = "600"  # 10 минут кэширования
-        return response
-    
-    # Для обычных запросов вызываем следующий обработчик
-    response = await call_next(request)
-    return response
 
 @app.on_event("startup")
 def on_startup():
@@ -71,11 +37,6 @@ def on_startup():
 @app.get("/")
 def read_root():
     return {"message": "Hello, world!"}
-
-# Добавляем общий обработчик OPTIONS для всех маршрутов
-@app.options("/{full_path:path}")
-async def options_handler(full_path: str):
-    return {"detail": "Разрешено"}
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(maps.router, prefix="/maps", tags=["maps"])
