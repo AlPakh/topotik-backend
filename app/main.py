@@ -1,10 +1,24 @@
 import logging
 import sys
+import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.database import init_db
 from app.routers import auth, maps, markers, collections, folders, users, location, images
+from app.debug_router import router as debug_router  # Импорт отладочного роутера
+
+# Загрузка переменных окружения из .env файла
+load_dotenv()
+
+# Вывод информации о загруженных переменных S3 для отладки
+s3_vars = {
+    "S3_ACCESS_KEY_ID": os.getenv("S3_ACCESS_KEY_ID", "Не задано"),
+    "S3_SECRET_ACCESS_KEY": os.getenv("S3_SECRET_ACCESS_KEY", "Не задано") != "Не задано",
+    "S3_ENDPOINT": os.getenv("S3_ENDPOINT", "Не задано"),
+    "S3_BUCKET_NAME": os.getenv("S3_BUCKET_NAME", "Не задано")
+}
 
 # Настройка логирования
 logging.basicConfig(
@@ -17,6 +31,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+logger.info(f"Загруженные переменные окружения S3: {s3_vars}")
 
 # Создаем экземпляр FastAPI
 app = FastAPI(title="Topotik API")
@@ -57,7 +72,12 @@ app.include_router(collections.router, prefix="/collections", tags=["collections
 app.include_router(folders.router, prefix="/folders", tags=["folders"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(location.router, prefix="/location", tags=["location"])
-app.include_router(images.router, prefix="/images", tags=["images"])
+
+# Регистрируем роутер для изображений без дополнительных префиксов,
+# так как они уже заданы в самом роутере
+app.include_router(images.router)
+
+app.include_router(debug_router)  # Добавление отладочного роутера
 
 # Обработчик необработанных исключений
 @app.exception_handler(Exception)

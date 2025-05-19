@@ -29,6 +29,7 @@ class User(UserBase):
     user_id: UUID
     created_at: Optional[datetime] = None
     settings: Optional[Dict[str, Any]] = None
+    is_admin: bool = False
 
     class Config:
         from_attributes = True
@@ -61,18 +62,23 @@ class PermissionType(str, Enum):
 
 class MapBase(BaseModel):
     title: str
+    description: Optional[str] = None
     map_type: MapType
     is_public: bool = False
-    background_image_id: Optional[UUID4] = None
+    background_image_id: Optional[str] = None
+    is_custom: bool = False
 
 class MapCreate(MapBase):
     folder_id: Optional[UUID] = None
     current_folder_id: Optional[UUID] = None  # ID текущей открытой папки на фронтенде
+    background_image_id: Optional[str] = None
 
-class MapUpdate(BaseModel):
+class MapUpdate(MapBase):
     title: Optional[str] = None
-    map_type: Optional[MapType] = None
-    is_public: Optional[bool] = None
+    description: Optional[str] = None
+
+class MapBackgroundUpdate(BaseModel):
+    background_image_id: Optional[str] = None
 
 class MapMove(BaseModel):
     folder_id: Optional[UUID] = None  # None означает перемещение в корневой каталог
@@ -80,6 +86,9 @@ class MapMove(BaseModel):
 class Map(MapBase):
     map_id: UUID
     created_at: Optional[datetime] = None
+    background_image_id: Optional[str] = None
+    background_image_url: Optional[str] = None
+    is_custom: bool = False
 
     class Config:
         from_attributes = True
@@ -236,27 +245,32 @@ class GenericResponse(BaseModel):
 
 # Схемы для работы с изображениями
 class ImageBase(BaseModel):
-    file_name: str
-    mime_type: str
-    file_size: int
+    filename: str
 
-class ImageCreate(ImageBase):
-    pass
+class ImageUploadResponse(BaseModel):
+    success: bool
+    message: str
+    image: Optional[str] = None
+    id: Optional[str] = None
+    url: Optional[str] = None
+    filename: Optional[str] = None
+    created_at: Optional[datetime] = None
+    uploaded_by: Optional[str] = None
 
 class ImageResponse(ImageBase):
-    image_id: UUID4
-    s3_key: str
+    id: str
+    url: str
+    uploaded_by: str
     created_at: datetime
-    url: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-class ImageListResponse(BaseModel):
-    images: List[ImageResponse]
+    # description удалено, т.к. отсутствует в БД
 
 class ImageDeleteResponse(BaseModel):
     success: bool
+    message: str
+
+class ImageListResponse(BaseModel):
+    images: List[ImageResponse]
+    total: int
 
 # ————————————————————————————————————————————————
 class MapResponse(MapBase):

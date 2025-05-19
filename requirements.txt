@@ -8,6 +8,9 @@ python-jose[cryptography]
 pydantic[email]
 pydantic-settings
 python-multipart
-boto3==1.28.39      # AWS SDK для Python, включает S3
+boto3>=1.37.2, <1.37.4  # Обновлено для совместимости с aioboto3
+aiobotocore>=2.22.0     # Добавлено для асинхронной работы с AWS
+aioboto3>=14.0.0        # Добавлено для асинхронной работы с S3
+aiofiles>=23.2.1        # Добавлено для асинхронной работы с файлами
 python-multipart    # Для загрузки файлов
 httpx==0.23.3

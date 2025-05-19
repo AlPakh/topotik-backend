@@ -5,6 +5,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, BYTEA
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from datetime import datetime
 from app.database import Base
 
 MapTypeEnum = Enum('osm', 'custom_image', name='map_type_enum', schema='topotik')
@@ -70,10 +71,12 @@ class Map(Base):
     map_type = Column(MapTypeEnum, nullable=False)
     is_public = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    background_image_id = Column(UUID(as_uuid=True), ForeignKey("topotik.images.image_id"), nullable=True)
 
     collections = relationship("Collection", back_populates="map", cascade="all, delete-orphan")
     folders = relationship("Folder", secondary=folder_maps, back_populates="maps")
     access = relationship("MapAccess", back_populates="map", cascade="all, delete-orphan")
+    background_image = relationship("Image", back_populates="maps")
 
 class MapAccess(Base):
     __tablename__ = "map_access"
@@ -163,3 +166,4 @@ class Image(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     owner = relationship("User", back_populates="images")
+    maps = relationship("Map", back_populates="background_image")
