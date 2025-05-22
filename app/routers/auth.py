@@ -41,6 +41,8 @@ class TokenResponse(BaseModel):
     email: str
     user_id: str
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
 @router.post("/register", response_model=TokenResponse, summary="Регистрация нового пользователя", description="Создает нового пользователя с указанными данными, автоматически входит в систему и возвращает данные пользователя и токен авторизации.")
 def register(user: schemas.UserCreate, response: Response, db: Session = Depends(get_db)):
     if crud.get_user_by_email(db, user.email):
@@ -259,8 +261,6 @@ def refresh_access_token(request: schemas.TokenRefreshRequest, response: Respons
         "email": user.email,
         "user_id": str(user.user_id)
     }
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 # Функция для декодирования токена
 def decode_token(token: str):
