@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
-from jose import jwt
+from jose import jwt, JWTError
 from app import models, schemas
 from app.settings import settings
 from typing import Optional, Dict, Any, List
@@ -979,7 +979,73 @@ def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=EXPIRE_MIN)
     to_encode.update({"exp": expire})
+    to_encode.update({"token_type": "access"})  # Добавляем тип токена
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_refresh_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=15)  # 15 дней
+    to_encode.update({"exp": expire})
+    to_encode.update({"token_type": "refresh"})  # Добавляем тип токена для различия
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def save_refresh_token(db: Session, user_id: UUID, refresh_token: str) -> bool:
+    """Сохраняет refresh токен в поле settings пользователя"""
+    try:
+        # Получаем текущие настройки пользователя
+        current_settings = get_user_settings(db, user_id)
+        
+        # Если настройки не существуют, создаем новый словарь
+        if not current_settings:
+            current_settings = {}
+        
+        # Если нет секции безопасности, создаем ее
+        if 'security' not in current_settings:
+            current_settings['security'] = {}
+        
+        # Добавляем refresh токен и время его создания
+        current_settings['security']['refresh_token'] = refresh_token
+        current_settings['security']['token_created'] = datetime.utcnow().isoformat()
+        
+        # Сохраняем обновленные настройки
+        return update_user_settings(db, user_id, current_settings) is not None
+    except Exception as e:
+        print(f"Ошибка при сохранении refresh токена: {str(e)}")
+        return False
+
+def validate_refresh_token(db: Session, refresh_token: str) -> Optional[str]:
+    """
+    Проверяет refresh токен и возвращает ID пользователя, если токен валиден
+    """
+    try:
+        # Декодируем токен
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # Проверяем, что это refresh токен
+        if payload.get("token_type") != "refresh":
+            return None
+        
+        user_id = payload.get("user_id")
+        if not user_id:
+            return None
+        
+        # Получаем настройки пользователя
+        settings = get_user_settings(db, UUID(user_id))
+        
+        # Проверяем, что токен совпадает с сохраненным
+        if not settings or not settings.get("security"):
+            return None
+            
+        stored_token = settings["security"].get("refresh_token")
+        if not stored_token or stored_token != refresh_token:
+            return None
+            
+        return user_id
+    except JWTError:
+        return None
+    except Exception as e:
+        print(f"Ошибка при проверке refresh токена: {str(e)}")
+        return None
 
 # ————————————————————————————————————————————————
 # Maps

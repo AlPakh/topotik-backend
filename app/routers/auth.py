@@ -83,8 +83,12 @@ def register(user: schemas.UserCreate, response: Response, db: Session = Depends
         print(f"Ошибка при создании настроек по умолчанию: {str(e)}")
         # Продолжаем выполнение, так как фронтенд имеет резервный механизм
     
-    # Создаем токен
+    # Создаем токены
     access_token = crud.create_access_token({"user_id": str(new_user.user_id)})
+    refresh_token = crud.create_refresh_token({"user_id": str(new_user.user_id)})
+    
+    # Сохраняем refresh токен в настройках пользователя
+    crud.save_refresh_token(db, new_user.user_id, refresh_token)
     
     # Устанавливаем cookies
     response.set_cookie(
@@ -92,6 +96,16 @@ def register(user: schemas.UserCreate, response: Response, db: Session = Depends
         value=access_token,
         httponly=True,
         max_age=15 * 24 * 60 * 60,  # 15 дней
+        samesite="lax",
+        secure=False  # установите True для HTTPS
+    )
+    
+    # Устанавливаем refresh токен в куки
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        max_age=30 * 24 * 60 * 60,  # 30 дней
         samesite="lax",
         secure=False  # установите True для HTTPS
     )
@@ -105,7 +119,6 @@ def register(user: schemas.UserCreate, response: Response, db: Session = Depends
         secure=False  # установите True для HTTPS
     )
     
-    # Возвращаем токен и данные пользователя, как в методе login
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -135,7 +148,12 @@ def login(
     
     print(f"DEBUG: Успешная аутентификация пользователя: {user.username}")
     
+    # Создаем токены
     access_token = crud.create_access_token({"user_id": str(user.user_id)})
+    refresh_token = crud.create_refresh_token({"user_id": str(user.user_id)})
+    
+    # Сохраняем refresh токен в настройках пользователя
+    crud.save_refresh_token(db, user.user_id, refresh_token)
     
     # Устанавливаем cookies
     response.set_cookie(
@@ -143,6 +161,16 @@ def login(
         value=access_token,
         httponly=True,
         max_age=15 * 24 * 60 * 60,  # 15 дней
+        samesite="lax",
+        secure=False  # установите True для HTTPS
+    )
+    
+    # Устанавливаем refresh токен в куки
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        max_age=30 * 24 * 60 * 60,  # 30 дней
         samesite="lax",
         secure=False  # установите True для HTTPS
     )
@@ -165,10 +193,72 @@ def login(
     }
 
 @router.post("/logout", summary="Выход из системы", description="Удаляет cookies сессии и завершает сеанс пользователя.")
-def logout(response: Response):
+def logout(response: Response, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        # Декодируем токен для получения ID пользователя
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("user_id")
+        
+        if user_id:
+            # Получаем настройки пользователя
+            settings_data = crud.get_user_settings(db, user_id)
+            
+            # Удаляем информацию о refresh токене
+            if settings_data and 'security' in settings_data:
+                if 'refresh_token' in settings_data['security']:
+                    del settings_data['security']['refresh_token']
+                    crud.update_user_settings(db, user_id, settings_data)
+    except Exception as e:
+        print(f"Ошибка при удалении refresh токена: {str(e)}")
+    
+    # Удаляем куки
     response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
     response.delete_cookie("username")
+    
     return {"message": "Успешный выход из системы"}
+
+@router.post("/token/refresh", response_model=TokenResponse, summary="Обновление токена доступа", description="Создает новый токен доступа на основе действительного токена обновления.")
+def refresh_access_token(request: schemas.TokenRefreshRequest, response: Response, db: Session = Depends(get_db)):
+    """Обновляет access token с помощью refresh token"""
+    user_id = crud.validate_refresh_token(db, request.refresh_token)
+    
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Недействительный или истекший токен обновления",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    # Получаем данные пользователя
+    user = crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Пользователь не найден",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Создаем новый access token
+    access_token = crud.create_access_token({"user_id": str(user.user_id)})
+    
+    # Устанавливаем куки
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        max_age=15 * 24 * 60 * 60,  # 15 дней
+        samesite="lax",
+        secure=False  # установите True для HTTPS
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "username": user.username,
+        "email": user.email,
+        "user_id": str(user.user_id)
+    }
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 

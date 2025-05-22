@@ -18,6 +18,25 @@ class TokenData(BaseModel):
     exp: Optional[int] = None
 
 # ————————————————————————————————————————————————
+# Добавляем новые схемы для обновления токена
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    username: str
+    email: str
+    user_id: str
+
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str
+
+class TokenRefreshResponse(BaseModel):
+    access_token: str
+    token_type: str
+    username: str
+    email: str
+    user_id: str
+
+# ————————————————————————————————————————————————
 class UserBase(BaseModel):
     username: str
     email: Optional[EmailStr] = None
