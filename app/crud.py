@@ -1234,24 +1234,11 @@ def get_map(db: Session, map_id: UUID):
     
     if map_obj and map_obj.background_image_id:
         try:
-            # Получаем информацию о фоновом изображении из БД
-            result = db.execute(
-                text("""
-                    SELECT s3_key 
-                    FROM topotik.images 
-                    WHERE image_id = :image_id
-                """),
-                {"image_id": str(map_obj.background_image_id)}
-            ).fetchone()
-            
-            if result and result.s3_key:
-                # Импортируем функцию генерации URL
-                from app.services.image_service import get_image_url
-                # Добавляем URL изображения к объекту карты
-                setattr(map_obj, 'background_image_url', get_image_url(result.s3_key))
+            # Используем прокси-эндпоинт вместо прямого доступа к S3
+            setattr(map_obj, 'background_image_url', f"/images/proxy/{map_obj.background_image_id}")
         except Exception as e:
             import logging
-            logging.error(f"Ошибка при получении URL фонового изображения: {str(e)}")
+            logging.error(f"Ошибка при формировании URL изображения: {str(e)}")
     
     return map_obj
 

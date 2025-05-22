@@ -178,7 +178,7 @@ class ImageService:
                 detail=f"Ошибка при загрузке изображения: {str(e)}"
             )
             
-    async def get_image_by_id(self, image_id: str) -> Optional[ImageResponse]:
+    async def get_image_by_id(self, image_id: str) -> Optional[Image]:
         """
         Получение информации об изображении по его ID.
         
@@ -186,7 +186,7 @@ class ImageService:
             image_id: ID изображения
             
         Возвращает:
-            Объект ImageResponse с данными изображения или None, если изображение не найдено
+            Объект Image из БД или None, если изображение не найдено
         """
         try:
             db = await self._get_db_session()
@@ -196,20 +196,7 @@ class ImageService:
             result = await db.execute(query)
             image = result.scalar_one_or_none()
             
-            if not image:
-                return None
-            
-            # Формируем URL к изображению (поскольку в БД URL не хранится)
-            file_url = f"https://{self.s3_endpoint}/{self.s3_bucket}/{image.s3_key}"
-            
-            # Возвращаем данные о изображении
-            return ImageResponse(
-                id=str(image.image_id),
-                filename=image.file_name,
-                url=file_url,
-                uploaded_by=str(image.user_id),
-                created_at=image.created_at
-            )
+            return image
         except Exception as e:
             logger.error(f"Ошибка при получении изображения {image_id}: {str(e)}")
             raise HTTPException(
@@ -359,4 +346,45 @@ class ImageService:
             raise HTTPException(
                 status_code=500, 
                 detail=f"Ошибка при проверке использования изображения: {str(e)}"
-            ) 
+            )
+
+    def get_image_url(self, image_id=None, s3_key=None):
+        """
+        Получает полный URL изображения на основе его ID или s3_key
+        
+        Args:
+            image_id: UUID изображения 
+            s3_key: Ключ S3 для прямого доступа
+            
+        Returns:
+            str: Полный URL для доступа к изображению
+        """
+        if s3_key:
+            return f"https://{self.s3_endpoint}/{self.s3_bucket}/{s3_key}"
+        elif image_id:
+            # Для случаев, когда у нас есть только ID, но нет s3_key
+            # Предполагаем что изображение хранится в стандартной папке с названием image_id
+            return f"https://{self.s3_endpoint}/{self.s3_bucket}/map_images/{str(image_id)}.png"
+        else:
+            logger.error("Невозможно сформировать URL: не предоставлен ни image_id, ни s3_key")
+            return None
+            
+    def get_s3_client(self):
+        """
+        Создает и возвращает клиент boto3 S3 для работы с хранилищем
+        
+        Returns:
+            boto3.client: Настроенный клиент S3
+        """
+        import boto3
+        
+        # Создаем клиент S3 с настройками
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=self.s3_key_id,
+            aws_secret_access_key=self.s3_secret,
+            endpoint_url=f"https://{self.s3_endpoint}",
+            region_name=self.s3_region
+        )
+        
+        return s3_client 

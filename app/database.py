@@ -26,10 +26,24 @@ def get_db():
     finally:
         db.close()
 
-# Функция-фабрика для получения асинхронной сессии базы данных
+# Функция для получения асинхронной сессии БД
 async def get_async_session():
-    async with AsyncSessionLocal() as session:
+    """
+    Асинхронный генератор для работы с сессией базы данных.
+    Обеспечивает автоматическое закрытие сессии после использования.
+    
+    Yields:
+        AsyncSession: Объект асинхронной сессии SQLAlchemy.
+    """
+    session = AsyncSessionLocal()
+    try:
         yield session
+        await session.commit()
+    except Exception as e:
+        await session.rollback()
+        raise e
+    finally:
+        await session.close()
 
 def init_db():
     import app.models  # регистрируем модели

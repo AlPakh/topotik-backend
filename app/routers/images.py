@@ -1,15 +1,18 @@
 import uuid
 import sys
+import requests
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from app.database import get_db
 from app.services import image_service
 from app.routers.auth import get_current_user
 from app.schemas import ImageResponse, ImageListResponse, ImageDeleteResponse, ImageUploadResponse, User
 from app.services.image_service import ImageService
 import logging
+from sqlalchemy.future import select
+from app.models import Image
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +82,7 @@ async def upload_image(
             success=True,
             message="Изображение успешно загружено",
             id=image_data.id,
-            url=image_data.url,
+            url=f"/images/proxy/{image_data.id}", # Изменяем URL на прокси-эндпоинт
             filename=image_data.filename,
             created_at=image_data.created_at,
             uploaded_by=str(current_user.user_id)
@@ -90,6 +93,71 @@ async def upload_image(
         raise HTTPException(
             status_code=500,
             detail=f"Ошибка при загрузке изображения: {str(e)}"
+        )
+
+# Новый прокси-эндпоинт для доступа к изображениям
+@router.get("/proxy/{image_id}")
+async def proxy_image(
+    image_id: str
+):
+    """
+    Прокси для получения изображения из S3.
+    
+    Этот эндпоинт загружает изображение из S3 и передает его клиенту,
+    решая проблему с авторизацией при прямом доступе к S3.
+    """
+    try:
+        image_service = ImageService()
+        
+        # Получаем сессию БД
+        db = await image_service._get_db_session()
+        
+        # Прямой запрос к БД для получения модели Image с s3_key
+        query = select(Image).where(Image.image_id == image_id)
+        result = await db.execute(query)
+        image_model = result.scalar_one_or_none()
+        
+        if not image_model:
+            raise HTTPException(status_code=404, detail=f"Изображение с ID {image_id} не найдено")
+        
+        # Получаем s3_key напрямую из модели
+        s3_key = image_model.s3_key
+        
+        # Получаем пресигнированный URL для изображения
+        s3_client = image_service.get_s3_client()
+        
+        # Генерируем пресигнированный URL с помощью boto3
+        presigned_url = s3_client.generate_presigned_url(
+            ClientMethod='get_object',
+            Params={
+                'Bucket': image_service.s3_bucket,
+                'Key': s3_key
+            },
+            ExpiresIn=60  # URL действителен 60 секунд
+        )
+        
+        # Получаем изображение по пресигнированному URL
+        response = requests.get(presigned_url, stream=True)
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Ошибка при загрузке изображения из S3: {response.status_code}"
+            )
+        
+        # Определяем тип содержимого из ответа
+        content_type = response.headers.get('Content-Type', 'image/png')
+        
+        # Возвращаем изображение клиенту с правильным типом содержимого
+        return StreamingResponse(
+            response.iter_content(chunk_size=8192),
+            media_type=content_type
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при проксировании изображения: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при получении изображения: {str(e)}"
         )
 
 # Маршрут для получения списка изображений
@@ -139,7 +207,16 @@ async def get_image(
         if not image:
             raise HTTPException(status_code=404, detail=f"Изображение с ID {image_id} не найдено")
         
-        return image
+        # Преобразуем модель Image в схему ImageResponse
+        file_url = f"https://{image_service.s3_endpoint}/{image_service.s3_bucket}/{image.s3_key}"
+        
+        return ImageResponse(
+            id=str(image.image_id),
+            filename=image.file_name,
+            url=file_url,
+            uploaded_by=str(image.user_id),
+            created_at=image.created_at
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -169,7 +246,7 @@ async def delete_image(
             raise HTTPException(status_code=404, detail=f"Изображение с ID {image_id} не найдено")
         
         # Проверяем права доступа (только владелец или админ)
-        if str(image.uploaded_by) != str(current_user.user_id) and not current_user.is_admin:
+        if str(image.user_id) != str(current_user.user_id) and not current_user.is_admin:
             raise HTTPException(
                 status_code=403,
                 detail="Недостаточно прав для удаления этого изображения"

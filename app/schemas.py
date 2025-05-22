@@ -90,7 +90,17 @@ class MapBase(BaseModel):
 class MapCreate(MapBase):
     folder_id: Optional[UUID] = None
     current_folder_id: Optional[UUID] = None  # ID текущей открытой папки на фронтенде
-    background_image_id: Optional[str] = None
+    background_image_id: Optional[str] = None  # Оставляем строку для входящих данных
+    
+    @field_validator('background_image_id', mode='before')
+    @classmethod
+    def validate_background_image_id(cls, v):
+        """Валидирует background_image_id"""
+        if v is None:
+            return None
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
 
 class MapUpdate(MapBase):
     title: Optional[str] = None
@@ -98,6 +108,16 @@ class MapUpdate(MapBase):
 
 class MapBackgroundUpdate(BaseModel):
     background_image_id: Optional[str] = None
+    
+    @field_validator('background_image_id', mode='before')
+    @classmethod
+    def validate_background_image_id(cls, v):
+        """Валидирует background_image_id"""
+        if v is None:
+            return None
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
 
 class MapMove(BaseModel):
     folder_id: Optional[UUID] = None  # None означает перемещение в корневой каталог
@@ -105,12 +125,26 @@ class MapMove(BaseModel):
 class Map(MapBase):
     map_id: UUID
     created_at: Optional[datetime] = None
-    background_image_id: Optional[str] = None
+    background_image_id: Optional[UUID] = None
     background_image_url: Optional[str] = None
     is_custom: bool = False
 
+    @field_validator('background_image_id', mode='before')
+    @classmethod
+    def validate_background_image_id(cls, v):
+        """Валидирует background_image_id, преобразуя его в UUID при необходимости"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return UUID(v)
+            except ValueError:
+                raise ValueError(f"background_image_id должен быть действительным UUID, получено: {v}")
+        return v
+
     class Config:
         from_attributes = True
+        arbitrary_types_allowed = True  # Разрешаем произвольные типы
 
 # ————————————————————————————————————————————————
 class MapAccessBase(BaseModel):
@@ -297,5 +331,19 @@ class MapResponse(MapBase):
     created_at: datetime
     background_image_url: Optional[str] = None
     
+    @field_validator('background_image_id', mode='before')
+    @classmethod
+    def validate_background_image_id(cls, v):
+        """Валидирует background_image_id, преобразуя его в соответствующий тип"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return UUID(v)
+            except ValueError:
+                raise ValueError(f"background_image_id должен быть действительным UUID, получено: {v}")
+        return v
+
     class Config:
         from_attributes = True
+        arbitrary_types_allowed = True  # Разрешаем произвольные типы

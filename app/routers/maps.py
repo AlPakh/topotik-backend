@@ -25,6 +25,11 @@ def get_map(map_id: UUID, db: Session = Depends(get_db)):
     m = crud.get_map(db, map_id)
     if not m:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Карта не найдена")
+    
+    # Если у карты есть фоновое изображение, получаем его URL через прокси
+    if m.background_image_id:
+        m.background_image_url = f"/images/proxy/{m.background_image_id}"
+    
     return m
 
 @router.post("/", response_model=schemas.Map, status_code=status.HTTP_201_CREATED, summary="Создать новую карту", description="Создает новую карту для текущего пользователя. Может быть карта OSM (реальная) или пользовательская карта.")
@@ -225,36 +230,24 @@ def update_map_background(
         background_image_url = None
         if map_entity.background_image_id:
             try:
-                # Получаем информацию о изображении из БД
-                image = db.query(models.Image).filter(
-                    models.Image.image_id == map_entity.background_image_id
-                ).first()
-                
-                if image and image.s3_key:
-                    # Формируем URL изображения
-                    background_image_url = f"https://s3.eu-central-003.backblazeb2.com/bex-sber-bucket/{image.s3_key}"
-                    print(f"[DEBUG] URL изображения на основе s3_key: {background_image_url}")
-                else:
-                    # Если не можем получить s3_key, формируем URL на основе UUID
-                    background_image_url = f"https://s3.eu-central-003.backblazeb2.com/bex-sber-bucket/map_images/{str(map_entity.background_image_id)}.png"
-                    print(f"[DEBUG] URL изображения на основе UUID: {background_image_url}")
+                # Используем прокси-эндпоинт для изображения
+                background_image_url = f"/images/proxy/{map_entity.background_image_id}"
+                print(f"[DEBUG] URL изображения через прокси: {background_image_url}")
             except Exception as e:
                 # Логируем ошибку, но не прерываем выполнение
-                print(f"[DEBUG] Ошибка при получении URL изображения: {str(e)}")
-                # Формируем запасной URL на основе UUID
-                background_image_url = f"https://s3.eu-central-003.backblazeb2.com/bex-sber-bucket/map_images/{str(map_entity.background_image_id)}.png"
-                print(f"[DEBUG] Запасной URL изображения: {background_image_url}")
+                print(f"[DEBUG] Ошибка при формировании URL изображения: {str(e)}")
+                background_image_url = None
         
         # Формируем ответ
         response = {
-            "map_id": str(map_entity.map_id),
+            "map_id": map_entity.map_id,  # Возвращаем UUID напрямую
             "title": map_entity.title,
             "map_type": map_entity.map_type,
             "is_public": map_entity.is_public,
             "created_at": map_entity.created_at,
-            "background_image_id": str(map_entity.background_image_id) if map_entity.background_image_id else None,
+            "background_image_id": map_entity.background_image_id,  # Возвращаем UUID
             "is_custom": map_entity.is_custom,
-            "description": None,  # Добавляем поле description, требуемое схемой
+            "description": map_entity.description if hasattr(map_entity, 'description') else None,
             "background_image_url": background_image_url  # Добавляем URL изображения
         }
         
@@ -293,4 +286,43 @@ def clear_map_background_image(
     if not map_data:
         raise HTTPException(status_code=404, detail="Карта не найдена")
     
+    # Проверяем background_image_url для обновленной карты
+    if hasattr(map_data, 'background_image_id') and map_data.background_image_id:
+        # Используем прокси-эндпоинт для изображения
+        try:
+            map_data.background_image_url = f"/images/proxy/{map_data.background_image_id}"
+        except Exception as e:
+            print(f"Ошибка при формировании URL изображения после удаления: {str(e)}")
+            map_data.background_image_url = None
+    else:
+        # Убедимся, что URL изображения тоже очищен
+        map_data.background_image_url = None
+    
     return map_data
+
+@router.get("/{map_id}/with-image", response_model=schemas.Map, summary="Получить карту с полными данными изображения", description="Возвращает детальную информацию о карте, включая URL изображения.")
+def get_map_with_image(map_id: UUID, db: Session = Depends(get_db)):
+    """
+    Получение карты с полными данными изображения.
+    
+    Подобно get_map, но дополнительно загружает информацию об изображении.
+    """
+    # Получаем карту из БД
+    m = crud.get_map(db, map_id)
+    if not m:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Карта не найдена")
+    
+    # Если у карты есть фоновое изображение, добавляем URL для прокси
+    if m.background_image_id:
+        try:
+            # Устанавливаем URL через прокси-эндпоинт
+            m.background_image_url = f"/images/proxy/{m.background_image_id}"
+            
+            # Не используем async/await, чтобы избежать ошибок
+            print(f"Добавлен прокси URL для изображения: {m.background_image_url}")
+        except Exception as e:
+            print(f"Ошибка при формировании URL изображения: {str(e)}")
+            # Не вызываем исключение, чтобы не блокировать получение карты
+            # даже если изображение недоступно
+    
+    return m
