@@ -19,6 +19,10 @@ SECRET_KEY = settings.SECRET_KEY
 ALGORITHM  = settings.ALGORITHM
 EXPIRE_MIN = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
+def get_password_hash(password: str) -> str:
+    """Хеширует пароль с использованием bcrypt"""
+    return pwd_context.hash(password)
+
 # ————————————————————————————————————————————————
 # User
 def get_user_by_email(db: Session, email: str):
