@@ -5,7 +5,7 @@ from uuid import UUID
 from jose import jwt, JWTError
 from app import models, schemas
 from app.settings import settings
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from sqlalchemy import text
 import uuid
 import re
@@ -519,19 +519,36 @@ def update_folder(db: Session, folder_id: UUID, folder_data: schemas.FolderUpdat
         schemas.Folder: Обновленная папка или None в случае ошибки
     """
     try:
+        print(f"update_folder: Входные данные - folder_id тип: {type(folder_id)}, значение: {folder_id}")
+        
+        # Если folder_id - это строка, преобразуем в UUID
+        if isinstance(folder_id, str):
+            try:
+                folder_id = UUID(folder_id)
+                print(f"update_folder: folder_id преобразован из строки в UUID: {folder_id}")
+            except ValueError as ve:
+                print(f"update_folder: Ошибка преобразования folder_id в UUID: {ve}")
+                return None
+        
         # Преобразуем UUID в строку для SQL-запроса
         folder_id_str = str(folder_id)
+        print(f"update_folder: folder_id_str: {folder_id_str}")
+        
         # Проверяем, какие поля обновлять
         set_clauses = []
         params = {"folder_id": folder_id_str}
         if folder_data.title is not None:
             set_clauses.append("title = :title")
             params["title"] = folder_data.title
+            
         # Если нет полей для обновления, возвращаем текущую папку
         if not set_clauses:
-            return get_folder_by_id(db, folder_id)
+            print("update_folder: Нет полей для обновления, получаем текущую папку")
+            return get_folder_by_id(db, folder_id_str)  # Передаём строку вместо UUID
+            
         # Формируем SET часть SQL запроса
         set_clause = ", ".join(set_clauses)
+        
         # Выполняем обновление
         query = text(f"""
             UPDATE topotik.folders 
@@ -539,20 +556,28 @@ def update_folder(db: Session, folder_id: UUID, folder_data: schemas.FolderUpdat
             WHERE folder_id = :folder_id
             RETURNING folder_id, title, user_id, parent_folder_id
         """)
+        
+        print(f"update_folder: Выполняем запрос с параметрами: {params}")
         result = db.execute(query, params).fetchone()
         db.commit()
+        
         if result:
+            print(f"update_folder: Обновление успешно, result: {result}")
             folder = schemas.Folder(
-                folder_id=UUID(result[0]),
+                folder_id=UUID(result[0]) if isinstance(result[0], str) else result[0],
                 title=result[1],
-                user_id=UUID(result[2]),
-                parent_folder_id=UUID(result[3]) if result[3] else None
+                user_id=UUID(result[2]) if isinstance(result[2], str) else result[2],
+                parent_folder_id=UUID(result[3]) if result[3] and isinstance(result[3], str) else result[3]
             )
             return folder
+            
+        print("update_folder: Обновление не выполнено (не найдены подходящие записи)")
         return None
     except Exception as e:
         db.rollback()
         print(f"Ошибка при обновлении папки: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def move_folder(db: Session, folder_id: UUID, new_parent_id: Optional[UUID]) -> bool:
@@ -1937,14 +1962,23 @@ def delete_article(db: Session, article_id: UUID):
 def get_sharing_by_id(db: Session, sharing_id: UUID):
     return db.query(models.Sharing).filter(models.Sharing.sharing_id == sharing_id).first()
 
-def get_folder_by_id(db: Session, folder_id: UUID):
+def get_folder_by_id(db: Session, folder_id: Union[UUID, str]):
     """
     Получить папку по её идентификатору
+    
+    Args:
+        db (Session): Сессия базы данных
+        folder_id (Union[UUID, str]): Идентификатор папки как UUID или как строка
+        
+    Returns:
+        schemas.Folder: Объект папки или None в случае ошибки
     """
     try:
-        # Преобразуем UUID в строку
+        print(f"get_folder_by_id: Входной folder_id тип: {type(folder_id)}, значение: {folder_id}")
+        
+        # Преобразуем в строку (независимо от типа исходного аргумента)
         folder_id_str = str(folder_id)
-        print(f"Получение папки по ID: {folder_id_str}")
+        print(f"get_folder_by_id: Преобразованный folder_id_str: {folder_id_str}")
         
         query = text("""
             SELECT folder_id, title, user_id, parent_folder_id 
@@ -1955,6 +1989,8 @@ def get_folder_by_id(db: Session, folder_id: UUID):
         result = db.execute(query, {"folder_id": folder_id_str}).fetchone()
         
         if result:
+            print(f"get_folder_by_id: Папка найдена, result: {result}")
+            
             # Проверяем и безопасно преобразуем значения в UUID
             folder_dict = {}
             
@@ -1984,13 +2020,13 @@ def get_folder_by_id(db: Session, folder_id: UUID):
             
             # Создаем объект Folder
             folder = schemas.Folder(**folder_dict)
-            print(f"Папка найдена: {folder.title}")
+            print(f"get_folder_by_id: Папка преобразована в объект: {folder.title}")
             return folder
         
-        print(f"Папка не найдена: {folder_id_str}")
+        print(f"get_folder_by_id: Папка не найдена: {folder_id_str}")
         return None
     except Exception as e:
-        print(f"Ошибка при получении папки по ID: {e}")
+        print(f"get_folder_by_id: Ошибка при получении папки по ID: {e}")
         import traceback
         traceback.print_exc()
         return None

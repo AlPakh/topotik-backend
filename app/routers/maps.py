@@ -1,5 +1,5 @@
 # app/routers/maps.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List, Optional, Any
@@ -21,10 +21,35 @@ def get_user_maps(db: Session = Depends(get_db), user_id: UUID = Depends(get_use
     return crud.get_user_maps(db, user_id)
 
 @router.get("/{map_id}", response_model=schemas.Map, summary="Получить карту по ID", description="Возвращает детальную информацию о карте по её идентификатору.")
-def get_map(map_id: UUID, db: Session = Depends(get_db)):
+def get_map(map_id: UUID, db: Session = Depends(get_db), token: str = Header(None)):
     m = crud.get_map(db, map_id)
     if not m:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Карта не найдена")
+    
+    # Проверяем, приватная ли карта
+    if not m.is_public:
+        # Если карта приватная, проверяем авторизацию
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Для доступа к этой карте требуется авторизация"
+            )
+        
+        try:
+            # Получаем user_id из токена
+            user_id = get_user_id_from_token(token)
+            
+            # Проверяем права доступа
+            if not crud.check_map_ownership(db, map_id, user_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="У вас нет прав для просмотра этой карты"
+                )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Неверный токен авторизации"
+            )
     
     # Если у карты есть фоновое изображение, получаем его URL через прокси
     if m.background_image_id:
