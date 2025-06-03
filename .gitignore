@@ -12,10 +12,9 @@ test/
 /start_test.bat
 test/
 /test
-tests/
 test/
-*/tests/
 */test/
+**/test/
 */integration/
 
 venv/

@@ -10,7 +10,8 @@ import traceback
 
 from app import schemas, crud
 from app.database import get_db
-from app.routers.auth import get_user_id_from_token  
+from app.routers.auth import get_user_id_from_token, get_current_user
+from app.models import Sharing
 
 router = APIRouter(tags=["collections"])
 
@@ -526,3 +527,39 @@ def move_marker_between_collections(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при перемещении маркера между коллекциями: {str(e)}"
         )
+
+@router.get("/{collection_id}", response_model=schemas.Collection)
+def read_collection(
+    collection_id: UUID,
+    current_user: schemas.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Получить коллекцию по ID с проверкой доступа через шеринг
+    """
+    db_collection = crud.get_collection(db, collection_id)
+    if db_collection is None:
+        raise HTTPException(status_code=404, detail="Коллекция не найдена")
+    
+    # Проверка прав доступа через карту
+    map_id = db_collection.map_id
+    is_map_owner = crud.check_map_ownership(db, map_id, current_user.user_id)
+    
+    # Проверка прямого доступа к коллекции
+    has_direct_access = crud.check_collection_access(db, collection_id, current_user.user_id)
+    
+    # Проверка доступа через шеринг
+    has_shared_access = crud.check_resource_access(db, collection_id, "collection", current_user.user_id)
+    
+    # Проверяем, является ли коллекция публичной через шеринг
+    is_public_shared = db.query(Sharing).filter(
+        Sharing.resource_id == collection_id,
+        Sharing.resource_type == "collection",
+        Sharing.is_public == True,
+        Sharing.is_active == True
+    ).first() is not None
+    
+    if not is_map_owner and not has_direct_access and not has_shared_access and not is_public_shared and not db_collection.is_public:
+        raise HTTPException(status_code=403, detail="Доступ запрещен")
+    
+    return db_collection

@@ -10,6 +10,7 @@ from sqlalchemy import text
 import uuid
 import re
 import logging
+# import shortuuid # Удаляем этот импорт
 
 # Добавлены улучшения для работы с виртуальным полем map_id в схеме Marker.
 # Функции get_marker и get_markers_by_map теперь корректно заполняют это поле.
@@ -1233,14 +1234,24 @@ def get_user_maps(db: Session, user_id: UUID):
 def check_map_ownership(db: Session, map_id: UUID, user_id: UUID) -> bool:
     """
     Проверяет, имеет ли пользователь права на редактирование карты.
-    Права проверяются непосредственно через запись в map_access.
+    Права проверяются через запись в map_access, через владение картой,
+    или через наличие карты в папке пользователя.
     
     map_id: UUID карты
     user_id: UUID пользователя
     
     Возвращает True, если у пользователя есть права на редактирование
     """
+    logger = logging.getLogger(__name__)
+    
     try:
+        # Преобразуем UUID в строки для SQL-запросов
+        map_id_str = str(map_id)
+        user_id_str = str(user_id)
+        
+        logger.info(f"Проверка владения картой {map_id_str} для пользователя {user_id_str}")
+        
+        # 1. Проверяем доступ через map_access
         result = db.execute(
             text("""
                 SELECT 1 
@@ -1249,12 +1260,54 @@ def check_map_ownership(db: Session, map_id: UUID, user_id: UUID) -> bool:
                   AND user_id = :user_id 
                   AND permission = 'edit'
             """),
-            {"map_id": str(map_id), "user_id": str(user_id)}
+            {"map_id": map_id_str, "user_id": user_id_str}
         ).fetchone()
         
-        return result is not None
+        if result is not None:
+            logger.info(f"Пользователь {user_id_str} имеет прямой доступ к карте {map_id_str}")
+            return True
+        
+        # 2. Проверяем, является ли пользователь владельцем карты через папки
+        folder_result = db.execute(
+            text("""
+                SELECT 1
+                FROM topotik.folder_maps fm
+                JOIN topotik.folders f ON fm.folder_id = f.folder_id
+                WHERE fm.map_id = :map_id
+                AND f.user_id = :user_id
+            """),
+            {"map_id": map_id_str, "user_id": user_id_str}
+        ).fetchone()
+        
+        if folder_result is not None:
+            logger.info(f"Пользователь {user_id_str} имеет доступ к карте {map_id_str} через папку")
+            return True
+            
+        # 3. Если не нашли прав через предыдущие проверки, проверяем является ли пользователь создателем карты
+        # Создатель карты определяется как первая запись в map_access с правами edit
+        creator_result = db.execute(
+            text("""
+                SELECT 1
+                FROM topotik.map_access
+                WHERE map_id = :map_id
+                AND permission = 'edit'
+                AND user_id = :user_id
+                ORDER BY map_access_id
+                LIMIT 1
+            """),
+            {"map_id": map_id_str, "user_id": user_id_str}
+        ).fetchone()
+        
+        if creator_result is not None:
+            logger.info(f"Пользователь {user_id_str} является создателем карты {map_id_str}")
+            return True
+            
+        logger.info(f"Пользователь {user_id_str} не имеет прав доступа к карте {map_id_str}")
+        return False
     except Exception as e:
-        print(f"Ошибка при проверке прав доступа к карте: {e}")
+        logging.error(f"Ошибка при проверке прав доступа к карте: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def get_map(db: Session, map_id: UUID):
@@ -1445,8 +1498,38 @@ def check_collection_access(db: Session, collection_id: UUID, user_id: UUID, per
         ).fetchone()
         
         if is_map_owner:
-            logger.debug(f"Пользователь {user_id} владеет картой, к которой относится коллекция {collection_id}")
+            logger.debug(f"Пользователь {user_id} владеет картой через map_access, к которой относится коллекция {collection_id}")
             return True
+        
+        # Проверяем доступ к карте через папки
+        folder_access_query = text("""
+            SELECT 1 FROM topotik.collections c
+            JOIN topotik.folder_maps fm ON c.map_id = fm.map_id
+            JOIN topotik.folders f ON fm.folder_id = f.folder_id
+            WHERE c.collection_id = :collection_id 
+            AND f.user_id = :user_id
+        """)
+        
+        has_folder_access = db.execute(
+            folder_access_query, 
+            {
+                "collection_id": str(collection_id),
+                "user_id": str(user_id)
+            }
+        ).fetchone()
+        
+        if has_folder_access:
+            logger.debug(f"Пользователь {user_id} имеет доступ к карте через папки, к которой относится коллекция {collection_id}")
+            return True
+        
+        # Получаем ID карты для коллекции
+        collection = get_collection(db, collection_id)
+        if collection:
+            # Проверяем владение картой напрямую через check_map_ownership
+            map_id = collection.map_id
+            if check_map_ownership(db, map_id, user_id):
+                logger.debug(f"Пользователь {user_id} владеет картой {map_id}, к которой относится коллекция {collection_id}")
+                return True
             
         logger.warning(f"Пользователь {user_id} не имеет доступа к коллекции {collection_id}")
         return False
@@ -1961,6 +2044,339 @@ def delete_article(db: Session, article_id: UUID):
 # Sharing
 def get_sharing_by_id(db: Session, sharing_id: UUID):
     return db.query(models.Sharing).filter(models.Sharing.sharing_id == sharing_id).first()
+
+def get_active_sharing_by_id(db: Session, sharing_id: UUID):
+    """Получить активную запись шеринга по ID"""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Поиск активной записи шеринга с ID: {sharing_id}")
+    
+    sharing = db.query(models.Sharing).filter(
+        models.Sharing.sharing_id == sharing_id,
+        models.Sharing.is_active == True
+    ).first()
+    
+    if sharing:
+        logger.info(f"Найдена запись шеринга: ID={sharing.sharing_id}, is_active={sharing.is_active}, is_embed={getattr(sharing, 'is_embed', 'атрибут отсутствует')}")
+        # Проверяем все атрибуты
+        sharing_dict = {c.name: getattr(sharing, c.name) for c in sharing.__table__.columns}
+        logger.info(f"Все атрибуты записи шеринга: {sharing_dict}")
+    else:
+        logger.error(f"Активная запись шеринга с ID={sharing_id} не найдена")
+    
+    return sharing
+
+def get_sharings_by_resource(db: Session, resource_id: UUID, resource_type: str):
+    """Получить все записи шеринга для конкретного ресурса"""
+    return db.query(models.Sharing).filter(
+        models.Sharing.resource_id == resource_id,
+        models.Sharing.resource_type == resource_type
+    ).all()
+
+def get_active_sharings_by_resource(db: Session, resource_id: UUID, resource_type: str):
+    """Получить все активные записи шеринга для конкретного ресурса"""
+    return db.query(models.Sharing).filter(
+        models.Sharing.resource_id == resource_id,
+        models.Sharing.resource_type == resource_type,
+        models.Sharing.is_active == True
+    ).all()
+
+def get_resource_sharing_for_user(db: Session, resource_id: UUID, resource_type: str, user_id: UUID):
+    """Получить запись шеринга для конкретного ресурса и пользователя"""
+    return db.query(models.Sharing).filter(
+        models.Sharing.resource_id == resource_id,
+        models.Sharing.resource_type == resource_type,
+        models.Sharing.user_id == user_id,
+        models.Sharing.is_active == True
+    ).first()
+
+def get_user_shared_resources(db: Session, user_id: UUID):
+    """Получить все ресурсы, к которым у пользователя есть доступ"""
+    return db.query(models.Sharing).filter(
+        models.Sharing.user_id == user_id,
+        models.Sharing.is_active == True
+    ).all()
+
+def create_sharing(db: Session, sharing_in: schemas.SharingCreate, current_user_id: UUID = None):
+    """Создать новую запись шеринга"""
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Создание записи шеринга: {sharing_in.model_dump()}")
+
+    target_user_id = None
+    if sharing_in.user_email:
+        user = get_user_by_email(db, sharing_in.user_email)
+        if not user:
+            logger.error(f"Пользователь с email {sharing_in.user_email} не найден для предоставления доступа.")
+            # Можно либо выбросить исключение, либо просто не устанавливать user_id
+            # В данном случае, если email указан, но пользователь не найден, это может быть ошибкой
+            raise ValueError(f"Пользователь с email {sharing_in.user_email} не найден.")
+        target_user_id = user.user_id
+    elif sharing_in.user_id: # Если user_id передан напрямую
+        target_user_id = sharing_in.user_id
+
+    # Если это не ссылка для конкретного пользователя (например, публичная или embed), user_id будет None
+    if sharing_in.is_public or getattr(sharing_in, 'is_embed', False):
+        final_user_id = None
+    else:
+        final_user_id = target_user_id
+
+    # Генерация slug, если необходимо
+    final_slug = sharing_in.slug
+    if getattr(sharing_in, 'generate_slug', False) and not final_slug:
+        # Используем uuid.uuid4() для генерации slug
+        final_slug = uuid.uuid4().hex[:8] 
+        # Проверяем уникальность slug
+        while db.query(models.Sharing).filter(models.Sharing.slug == final_slug).first():
+            final_slug = uuid.uuid4().hex[:8]
+
+    # Проверяем наличие ресурса
+    if sharing_in.resource_type.value.lower() == "map":
+        resource = get_map(db, sharing_in.resource_id)
+        if not resource:
+            logger.error(f"Карта {sharing_in.resource_id} не найдена")
+            raise ValueError(f"Карта с ID {sharing_in.resource_id} не найдена")
+        
+        db_sharing = models.Sharing(
+            resource_id=sharing_in.resource_id,
+            resource_type=sharing_in.resource_type.value.lower(), # Используем .value для Enum
+            user_id=final_user_id, # Используем final_user_id
+            access_level=sharing_in.access_level.value.lower(), # Используем .value для Enum
+            is_public=sharing_in.is_public,
+            is_active=sharing_in.is_active,
+            is_embed=getattr(sharing_in, 'is_embed', False),  # Устанавливаем is_embed
+            slug=final_slug # Используем final_slug
+        )
+        
+        db.add(db_sharing)
+        db.commit()
+        db.refresh(db_sharing)
+        logger.info(f"Создана запись шеринга с ID {db_sharing.sharing_id} для карты {sharing_in.resource_id}")
+        return db_sharing
+    
+    elif sharing_in.resource_type.value.lower() == "collection":
+        resource = get_collection(db, sharing_in.resource_id)
+        if not resource:
+            logger.error(f"Коллекция {sharing_in.resource_id} не найдена")
+            raise ValueError(f"Коллекция с ID {sharing_in.resource_id} не найдена")
+        
+        db_sharing = models.Sharing(
+            resource_id=sharing_in.resource_id,
+            resource_type=sharing_in.resource_type.value.lower(),
+            user_id=final_user_id, 
+            access_level=sharing_in.access_level.value.lower(),
+            is_public=sharing_in.is_public,
+            is_active=sharing_in.is_active,
+            is_embed=getattr(sharing_in, 'is_embed', False),  # Устанавливаем is_embed
+            slug=final_slug
+        )
+        
+        db.add(db_sharing)
+        db.commit()
+        db.refresh(db_sharing)
+        logger.info(f"Создана запись шеринга с ID {db_sharing.sharing_id} для коллекции {sharing_in.resource_id}")
+        return db_sharing
+    else:
+        logger.error(f"Неподдерживаемый тип ресурса: {sharing_in.resource_type}")
+        raise ValueError(f"Неподдерживаемый тип ресурса: {sharing_in.resource_type}")
+
+def update_sharing(db: Session, sharing_id: UUID, sharing_update: schemas.SharingUpdate):
+    """Обновить запись шеринга"""
+    logger = logging.getLogger(__name__)
+    
+    db_sharing = get_sharing_by_id(db, sharing_id)
+    if not db_sharing:
+        logger.error(f"Запись шеринга {sharing_id} не найдена")
+        return None
+    
+    # Обновляем поля
+    if sharing_update.access_level is not None:
+        db_sharing.access_level = sharing_update.access_level.lower()
+    
+    if sharing_update.is_active is not None:
+        db_sharing.is_active = sharing_update.is_active
+        
+    if sharing_update.is_public is not None:
+        db_sharing.is_public = sharing_update.is_public
+        
+    if sharing_update.slug is not None:
+        db_sharing.slug = sharing_update.slug
+    
+    try:
+        db.commit()
+        db.refresh(db_sharing)
+        logger.info(f"Обновлена запись шеринга с ID {db_sharing.sharing_id}")
+        return db_sharing
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении записи шеринга: {str(e)}")
+        db.rollback()
+        raise
+
+def delete_sharing(db: Session, sharing_id: UUID):
+    """Удалить запись шеринга"""
+    logger = logging.getLogger(__name__)
+    
+    db_sharing = get_sharing_by_id(db, sharing_id)
+    if not db_sharing:
+        logger.error(f"Запись шеринга {sharing_id} не найдена")
+        return False
+    
+    try:
+        db.delete(db_sharing)
+        db.commit()
+        logger.info(f"Удалена запись шеринга с ID {sharing_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка при удалении записи шеринга: {str(e)}")
+        db.rollback()
+        return False
+
+def deactivate_sharing(db: Session, sharing_id: UUID):
+    """Деактивировать запись шеринга"""
+    logger = logging.getLogger(__name__)
+    
+    db_sharing = get_sharing_by_id(db, sharing_id)
+    if not db_sharing:
+        logger.error(f"Запись шеринга {sharing_id} не найдена")
+        return False
+    
+    try:
+        db_sharing.is_active = False
+        db.commit()
+        logger.info(f"Деактивирована запись шеринга с ID {sharing_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка при деактивации записи шеринга: {str(e)}")
+        db.rollback()
+        return False
+
+def check_resource_access(db: Session, resource_id: UUID, resource_type: str, user_id: UUID, required_permission: str = "view"):
+    """
+    Проверить доступ пользователя к ресурсу через шеринг
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Проверка доступа пользователя {user_id} к ресурсу {resource_id} типа {resource_type}")
+    
+    # Проверяем прямые права доступа
+    if resource_type.lower() == "map":
+        # Проверка владения картой
+        if check_map_ownership(db, resource_id, user_id):
+            logger.info(f"Пользователь {user_id} является владельцем карты {resource_id}")
+            return True
+            
+        # Проверка прав доступа к карте
+        map_access = db.query(models.MapAccess).filter(
+            models.MapAccess.map_id == resource_id,
+            models.MapAccess.user_id == user_id,
+        ).first()
+        
+        if map_access:
+            # Если требуется права на редактирование, проверяем их наличие
+            if required_permission == "edit" and map_access.permission != "edit":
+                logger.info(f"У пользователя {user_id} недостаточно прав для редактирования карты {resource_id}")
+                return False
+            
+            logger.info(f"У пользователя {user_id} есть прямой доступ к карте {resource_id}")
+            return True
+            
+    elif resource_type.lower() == "collection":
+        # Если это коллекция, сначала получаем карту коллекции
+        collection = get_collection(db, resource_id)
+        if not collection:
+            logger.error(f"Коллекция {resource_id} не найдена")
+            return False
+            
+        # Проверка прав доступа к карте коллекции
+        if check_map_ownership(db, collection.map_id, user_id):
+            logger.info(f"Пользователь {user_id} является владельцем карты коллекции {resource_id}")
+            return True
+            
+        # Проверка прямых прав доступа к коллекции
+        collection_access = db.query(models.CollectionAccess).filter(
+            models.CollectionAccess.collection_id == resource_id,
+            models.CollectionAccess.user_id == user_id
+        ).first()
+        
+        if collection_access:
+            # Если требуется права на редактирование, проверяем их наличие
+            if required_permission == "edit" and collection_access.permission != "edit":
+                logger.info(f"У пользователя {user_id} недостаточно прав для редактирования коллекции {resource_id}")
+                return False
+                
+            logger.info(f"У пользователя {user_id} есть прямой доступ к коллекции {resource_id}")
+            return True
+    
+    # Проверяем доступ через шеринг
+    sharing = db.query(models.Sharing).filter(
+        models.Sharing.resource_id == resource_id,
+        models.Sharing.resource_type == resource_type.lower(),
+        models.Sharing.user_id == user_id,
+        models.Sharing.is_active == True
+    ).first()
+    
+    if sharing:
+        # Если требуется права на редактирование, проверяем их наличие
+        if required_permission == "edit" and sharing.access_level != "edit":
+            logger.info(f"У пользователя {user_id} недостаточно прав для редактирования ресурса {resource_id}")
+            return False
+            
+        logger.info(f"У пользователя {user_id} есть доступ к ресурсу {resource_id} через шеринг")
+        return True
+    
+    logger.info(f"У пользователя {user_id} нет доступа к ресурсу {resource_id}")
+    return False
+
+def get_resource_owner(db: Session, resource_id: UUID, resource_type: str):
+    """Получить владельца ресурса"""
+    logger = logging.getLogger(__name__)
+    
+    if resource_type.lower() == "map":
+        # Находим карту и связанные с ней записи доступа с правами edit
+        map_access_records = db.query(models.MapAccess).filter(
+            models.MapAccess.map_id == resource_id,
+            models.MapAccess.permission == "edit"  # Ищем только пользователя с правами edit
+        ).first()
+        
+        if map_access_records:
+            # Возвращаем пользователя с правами edit
+            user = get_user(db, map_access_records.user_id)
+            if user:
+                return user
+                
+    elif resource_type.lower() == "collection":
+        collection = get_collection(db, resource_id)
+        if not collection:
+            logger.error(f"Коллекция {resource_id} не найдена")
+            return None
+            
+        # Получаем карту коллекции
+        map_item = get_map(db, collection.map_id)
+        if not map_item:
+            logger.error(f"Карта коллекции {collection.map_id} не найдена")
+            return None
+            
+        # Находим владельца карты с правами edit
+        map_access_records = db.query(models.MapAccess).filter(
+            models.MapAccess.map_id == map_item.map_id,
+            models.MapAccess.permission == "edit"  # Ищем только пользователя с правами edit
+        ).first()
+        
+        if map_access_records:
+            user = get_user(db, map_access_records.user_id)
+            if user:
+                return user
+    
+    logger.error(f"Владелец ресурса {resource_id} типа {resource_type} не найден")
+    return None
+
+def get_resource_title(db: Session, resource_id: UUID, resource_type: str):
+    """Получить заголовок ресурса"""
+    if resource_type.lower() == "map":
+        map_item = get_map(db, resource_id)
+        return map_item.title if map_item else "Неизвестная карта"
+    elif resource_type.lower() == "collection":
+        collection = get_collection(db, resource_id)
+        return collection.title if collection else "Неизвестная коллекция"
+    return "Неизвестный ресурс"
 
 def get_folder_by_id(db: Session, folder_id: Union[UUID, str]):
     """

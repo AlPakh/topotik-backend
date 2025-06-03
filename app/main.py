@@ -2,12 +2,15 @@ import logging
 import sys
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from app.database import init_db
-from app.routers import auth, maps, markers, collections, folders, users, location, images
+from fastapi.responses import JSONResponse, RedirectResponse
+from app.database import init_db, get_db
+from app.routers import auth, maps, markers, collections, folders, users, location, images, sharing
 from app.debug_router import router as debug_router  # Импорт отладочного роутера
+from app import crud
+from sqlalchemy.orm import Session
+from uuid import UUID
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -42,6 +45,7 @@ allowed_origins = [
     "https://topotik.onrender.com",           # альтернативный домен
     "http://localhost:8080",                  # локальная разработка фронтенда
     "http://localhost:5173",                  # альтернативный порт локальной разработки
+    "*",                                      # разрешаем запросы с любых сайтов для встраиваемых виджетов
 ]
 
 # CORS настройки
@@ -76,6 +80,16 @@ app.include_router(location.router, prefix="/location", tags=["location"])
 # Регистрируем роутер для изображений без дополнительных префиксов,
 # так как они уже заданы в самом роутере
 app.include_router(images.router)
+app.include_router(sharing.router, prefix="/sharing", tags=["sharing"])
+
+# Дополнительная регистрация маршрутов для виджетов без префикса
+@app.get("/embed/{sharing_id}")
+async def redirect_embed_widget(sharing_id: str, request: Request):
+    """
+    Перенаправление запросов к /embed/{sharing_id} на /sharing/embed/{sharing_id}
+    для поддержки встраивания виджетов без префикса /sharing
+    """
+    return RedirectResponse(url=f"/sharing/embed/{sharing_id}")
 
 app.include_router(debug_router)  # Добавление отладочного роутера
 

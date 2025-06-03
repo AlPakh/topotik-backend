@@ -21,41 +21,40 @@ def get_user_maps(db: Session = Depends(get_db), user_id: UUID = Depends(get_use
     return crud.get_user_maps(db, user_id)
 
 @router.get("/{map_id}", response_model=schemas.Map, summary="Получить карту по ID", description="Возвращает детальную информацию о карте по её идентификатору.")
-def get_map(map_id: UUID, db: Session = Depends(get_db), token: str = Header(None)):
-    m = crud.get_map(db, map_id)
-    if not m:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Карта не найдена")
+def get_map(
+    map_id: UUID, 
+    current_user: schemas.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Получить карту по ID. Если карта принадлежит пользователю или к ней есть доступ через шеринг,
+    возвращает данные карты.
+    """
+    db_map = crud.get_map(db, map_id)
     
-    # Проверяем, приватная ли карта
-    if not m.is_public:
-        # Если карта приватная, проверяем авторизацию
-        if not token:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Для доступа к этой карте требуется авторизация"
-            )
-        
-        try:
-            # Получаем user_id из токена
-            user_id = get_user_id_from_token(token)
+    if db_map is None:
+        raise HTTPException(status_code=404, detail="Карта не найдена")
+    
+    # Проверка прав доступа
+    is_owner = crud.check_map_ownership(db, map_id, current_user.user_id)
+    has_shared_access = crud.check_resource_access(db, map_id, "map", current_user.user_id)
             
-            # Проверяем права доступа
-            if not crud.check_map_ownership(db, map_id, user_id):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="У вас нет прав для просмотра этой карты"
-                )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Неверный токен авторизации"
-            )
+    # Проверяем, является ли карта публичной через шеринг
+    is_public = db.query(models.Sharing).filter(
+        models.Sharing.resource_id == map_id,
+        models.Sharing.resource_type == "map",
+        models.Sharing.is_public == True,
+        models.Sharing.is_active == True
+    ).first() is not None
+    
+    if not is_owner and not has_shared_access and not is_public and not db_map.is_public:
+        raise HTTPException(status_code=403, detail="Доступ запрещен")
     
     # Если у карты есть фоновое изображение, получаем его URL через прокси
-    if m.background_image_id:
-        m.background_image_url = f"/images/proxy/{m.background_image_id}"
+    if db_map.background_image_id:
+        db_map.background_image_url = f"/images/proxy/{db_map.background_image_id}"
     
-    return m
+    return db_map
 
 @router.post("/", response_model=schemas.Map, status_code=status.HTTP_201_CREATED, summary="Создать новую карту", description="Создает новую карту для текущего пользователя. Может быть карта OSM (реальная) или пользовательская карта.")
 def create_map(
@@ -349,5 +348,14 @@ def get_map_with_image(map_id: UUID, db: Session = Depends(get_db)):
             print(f"Ошибка при формировании URL изображения: {str(e)}")
             # Не вызываем исключение, чтобы не блокировать получение карты
             # даже если изображение недоступно
+    
+    # Добавляем информацию о владельце карты
+    owner = crud.get_resource_owner(db, map_id, "map")
+    if owner:
+        m.owner = {
+            "id": str(owner.user_id),
+            "username": owner.username,
+            "email": owner.email
+        }
     
     return m

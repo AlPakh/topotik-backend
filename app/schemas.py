@@ -128,6 +128,7 @@ class Map(MapBase):
     background_image_id: Optional[UUID] = None
     background_image_url: Optional[str] = None
     is_custom: bool = False
+    owner: Optional[Any] = None
 
     @field_validator('background_image_id', mode='before')
     @classmethod
@@ -347,3 +348,53 @@ class MapResponse(MapBase):
     class Config:
         from_attributes = True
         arbitrary_types_allowed = True  # Разрешаем произвольные типы
+
+# Схемы для работы с шерингом и виджетами
+class ResourceType(str, Enum):
+    MAP = "map"
+    COLLECTION = "collection"
+
+class SharingBase(BaseModel):
+    resource_id: UUID
+    resource_type: ResourceType
+    access_level: PermissionType = PermissionType.VIEW
+    is_public: bool = False
+    is_active: bool = True
+    is_embed: Optional[bool] = False
+    slug: Optional[str] = None
+
+class SharingCreate(SharingBase):
+    user_id: Optional[UUID] = None
+    user_email: Optional[EmailStr] = None
+    generate_slug: Optional[bool] = False
+
+class EmbedConfig(BaseModel):
+    width: str = "100%"
+    height: str = "500px" 
+    zoom_level: Optional[int] = None
+    center: Optional[Dict[str, float]] = None
+    show_controls: bool = True
+    theme: str = "light"
+
+class SharingUpdate(BaseModel):
+    access_level: Optional[PermissionType] = None
+    is_active: Optional[bool] = None
+    is_public: Optional[bool] = None
+    slug: Optional[str] = None
+
+class Sharing(SharingBase):
+    sharing_id: UUID
+    user_id: Optional[UUID] = None
+
+    class Config:
+        from_attributes = True
+
+class EmbedCodeResponse(BaseModel):
+    embed_code: str
+    iframe_url: str
+    sharing_id: UUID
+
+class SharingResponse(BaseModel):
+    sharing: Sharing
+    resource_title: str 
+    resource_owner: str

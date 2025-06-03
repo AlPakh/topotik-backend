@@ -148,8 +148,11 @@ class Sharing(Base):
     resource_id = Column(UUID(as_uuid=True), nullable=False)
     resource_type = Column(ResourceTypeEnum, nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("topotik.users.user_id"), nullable=True)
-    access_token = Column(String(255))
     access_level = Column(PermissionLevelEnum, nullable=False, default="view")
+    is_public = Column(Boolean, nullable=True, default=False)
+    is_active = Column(Boolean, nullable=True, default=True, name="is_active")
+    is_embed = Column(Boolean, nullable=True, default=False)
+    slug = Column(String(100), nullable=True, unique=True)
 
     user = relationship("User")
 
