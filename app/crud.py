@@ -2449,38 +2449,229 @@ def get_folder_by_id(db: Session, folder_id: Union[UUID, str]):
 
 def check_folder_ownership(db: Session, folder_id: UUID, user_id: UUID) -> bool:
     """
-    Проверяет, принадлежит ли папка указанному пользователю.
+    Проверяет, является ли пользователь владельцем папки
+    """
+    folder = get_folder_by_id(db, folder_id)
+    return folder is not None and folder.user_id == user_id
+
+# ————————————————————————————————————————————————
+# Функции для работы с общими картами
+
+def get_shared_maps_for_user(db: Session, user_id: UUID) -> List[Dict[str, Any]]:
+    """
+    Получить список карт, доступных пользователю через шеринг
+    """
+    # Находим все активные записи о шеринге карт для пользователя
+    shared_resources = db.query(models.Sharing)\
+        .filter(
+            models.Sharing.resource_type == "map",
+            models.Sharing.is_active == True,
+            models.Sharing.user_id == user_id
+        ).all()
     
-    folder_id: UUID папки
-    user_id: UUID пользователя
+    result = []
     
-    Возвращает True, если папка принадлежит пользователю
+    # Для каждой записи о шеринге получаем данные о карте и её владельце
+    for sharing in shared_resources:
+        # Получаем данные карты
+        map_data = db.query(models.Map)\
+            .filter(models.Map.id == sharing.resource_id)\
+            .first()
+        
+        if map_data:
+            # Получаем данные о владельце карты
+            owner = db.query(models.User)\
+                .filter(models.User.id == map_data.user_id)\
+                .first()
+            
+            owner_name = f"{owner.first_name} {owner.last_name}" if owner else "Неизвестный пользователь"
+            
+            # Формируем данные для ответа
+            map_info = {
+                "id": map_data.id,
+                "title": map_data.title,
+                "type": "map",
+                "map_type": map_data.map_type,
+                "is_shared": True,
+                "shared_by": owner_name,
+                "owner_id": str(map_data.user_id),
+                "background_image_id": map_data.background_image_id,
+                "background_image_url": None,  # URL будет добавлен на фронтенде
+                "created_at": map_data.created_at,
+                "updated_at": map_data.updated_at
+            }
+            
+            # Добавляем URL изображения, если оно есть
+            if map_data.background_image_id:
+                map_info["background_image_url"] = f"/images/proxy/{map_data.background_image_id}"
+            
+            result.append(map_info)
+    
+    return result
+
+def get_sharing_by_resource_id(db: Session, resource_id: UUID, user_id: UUID) -> Optional[models.Sharing]:
+    """
+    Получить запись о шеринге ресурса для конкретного пользователя
+    """
+    return db.query(models.Sharing)\
+        .filter(
+            models.Sharing.resource_id == resource_id,
+            models.Sharing.user_id == user_id,
+            models.Sharing.is_active == True
+        ).first()
+
+def get_shared_resource_for_user(db: Session, resource_id: UUID, resource_type: str, user_id: UUID) -> Optional[models.Sharing]:
+    """
+    Проверяет, имеет ли пользователь доступ к ресурсу через шеринг
+    
+    Args:
+        db (Session): Сессия базы данных
+        resource_id (UUID): ID ресурса
+        resource_type (str): Тип ресурса ('map' или 'collection')
+        user_id (UUID): ID пользователя
+    
+    Returns:
+        Optional[models.Sharing]: Запись о шеринге или None, если доступ отсутствует
+    """
+    return db.query(models.Sharing).filter(
+        models.Sharing.resource_id == resource_id,
+        models.Sharing.resource_type == resource_type.lower(),
+        models.Sharing.user_id == user_id,
+        models.Sharing.is_active == True
+    ).first()
+
+def get_folder_maps_entry(db: Session, map_id: UUID, user_id: UUID) -> Optional[Dict]:
+    """
+    Получить запись о связи карты с папкой для конкретного пользователя
     """
     try:
-        # Преобразуем UUID в строки и печатаем для отладки
-        folder_id_str = str(folder_id)
-        user_id_str = str(user_id)
-        print(f"Проверка владения папкой: folder_id={folder_id_str}, user_id={user_id_str}")
+        query = text("""
+            SELECT fm.folder_id, fm.map_id
+            FROM topotik.folder_maps fm
+            JOIN topotik.folders f ON fm.folder_id = f.folder_id
+            WHERE fm.map_id = :map_id
+            AND f.user_id = :user_id
+            LIMIT 1
+        """)
         
-        # Используем строки в запросе SQL
         result = db.execute(
-            text("""
-                SELECT 1 
-                FROM topotik.folders 
-                WHERE folder_id = :folder_id 
-                  AND user_id = :user_id
-            """),
-            {"folder_id": folder_id_str, "user_id": user_id_str}
+            query, 
+            {"map_id": str(map_id), "user_id": str(user_id)}
         ).fetchone()
         
         if result:
-            print(f"Папка {folder_id_str} принадлежит пользователю {user_id_str}")
-        else:
-            print(f"Папка {folder_id_str} НЕ принадлежит пользователю {user_id_str}")
-            
-        return result is not None
+            return {
+                "folder_id": result.folder_id,
+                "map_id": result.map_id
+            }
+        return None
     except Exception as e:
-        print(f"Ошибка при проверке прав доступа к папке: {e}")
-        import traceback
-        traceback.print_exc()
+        logging.error(f"Ошибка при получении записи folder_maps: {str(e)}")
+        return None
+
+def move_shared_map_to_folder(db: Session, map_id: UUID, user_id: UUID, folder_id: Optional[UUID] = None) -> Dict[str, Any]:
+    """
+    Переместить ярлык общей карты в другую папку
+    """
+    # Проверяем, что у пользователя есть доступ к этой карте через шеринг
+    sharing = get_sharing_by_resource_id(db, map_id, user_id)
+    if not sharing:
+        raise ValueError(f"Карта {map_id} не доступна пользователю {user_id}")
+    
+    # Проверяем, существует ли уже запись в folder_maps для этой карты
+    existing_entry = get_folder_maps_entry(db, map_id, user_id)
+    
+    try:
+        if existing_entry:
+            # Если запись существует, обновляем её или удаляем
+            if folder_id:
+                # Обновляем запись
+                update_query = text("""
+                    UPDATE topotik.folder_maps
+                    SET folder_id = :folder_id
+                    WHERE map_id = :map_id AND folder_id = :old_folder_id
+                """)
+                
+                db.execute(
+                    update_query, 
+                    {
+                        "folder_id": str(folder_id),
+                        "map_id": str(map_id),
+                        "old_folder_id": str(existing_entry["folder_id"])
+                    }
+                )
+            else:
+                # Если folder_id = None, удаляем запись (карта перемещается в корневой каталог)
+                delete_query = text("""
+                    DELETE FROM topotik.folder_maps
+                    WHERE map_id = :map_id AND folder_id = :folder_id
+                """)
+                
+                db.execute(
+                    delete_query, 
+                    {
+                        "map_id": str(map_id),
+                        "folder_id": str(existing_entry["folder_id"])
+                    }
+                )
+        else:
+            # Если записи нет и указана папка, создаем новую запись
+            if folder_id:
+                insert_query = text("""
+                    INSERT INTO topotik.folder_maps (map_id, folder_id)
+                    VALUES (:map_id, :folder_id)
+                """)
+                
+                db.execute(
+                    insert_query, 
+                    {
+                        "map_id": str(map_id),
+                        "folder_id": str(folder_id)
+                    }
+                )
+        
+        db.commit()
+        
+        # Возвращаем информацию о папке, в которую была перемещена карта
+        if folder_id:
+            folder = get_folder_by_id(db, folder_id)
+            return {
+                "id": str(folder.folder_id),
+                "name": folder.title,
+                "user_id": str(folder.user_id),
+                "parent_folder_id": str(folder.parent_folder_id) if folder.parent_folder_id else None
+            }
+        else:
+            # Если карта перемещена в корневой каталог, возвращаем виртуальную "корневую папку"
+            return {
+                "id": None,
+                "name": "Главная",
+                "user_id": str(user_id),
+                "parent_folder_id": None
+            }
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Ошибка при перемещении ярлыка карты: {str(e)}")
+        raise ValueError(f"Не удалось переместить ярлык карты: {str(e)}")
+
+def remove_map_from_user_folders(db: Session, map_id: UUID, user_id: UUID) -> bool:
+    """
+    Удалить ярлык на карту из всех папок пользователя
+    """
+    try:
+        db.execute(
+            text("""
+                DELETE FROM topotik.folder_maps fm
+                USING topotik.folders f
+                WHERE fm.folder_id = f.folder_id
+                AND f.user_id = :user_id
+                AND fm.map_id = :map_id
+            """),
+            {"user_id": str(user_id), "map_id": str(map_id)}
+        )
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Ошибка при удалении ярлыка карты из папок: {str(e)}")
         return False

@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import crud, schemas, models
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, get_user_id_from_token
 from sqlalchemy import text
+from fastapi import status
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -93,8 +94,20 @@ async def create_sharing_record(
             raise HTTPException(status_code=400, detail="Неподдерживаемый тип ресурса")
         
         # Если все проверки пройдены, создаем запись шеринга
-        sharing_record = crud.create_sharing(db, sharing_in=sharing, current_user_id=current_user.user_id)
-        return sharing_record
+        try:
+            sharing_record = crud.create_sharing(db, sharing_in=sharing, current_user_id=current_user.user_id)
+            return sharing_record
+        except ValueError as ve:
+            # Отлавливаем ошибку с ненайденным пользователем
+            error_message = str(ve)
+            if "не найден" in error_message:
+                raise HTTPException(
+                    status_code=404,
+                    detail=error_message
+                )
+            else:
+                # Для других ошибок ValueError пробрасываем дальше
+                raise
     except HTTPException:
         # Пробрасываем HTTP исключения дальше
         raise
@@ -186,36 +199,41 @@ async def get_resource_sharing_records(
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Ошибка при получении записей шеринга: {str(e)}")
 
-@router.get("/my-shared", response_model=List[schemas.SharingResponse])
-async def get_my_shared_resources(
+@router.get("/my-shared-resources", response_model=List[schemas.SharedResourceResponse], summary="Получить ресурсы, к которым у пользователя есть доступ", 
+           description="Возвращает список ресурсов, которыми с пользователем поделились")
+def get_my_shared_resources(
+    resource_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user)
+    user_id: UUID = Depends(get_user_id_from_token)
 ):
     """
-    Получить все ресурсы, к которым у текущего пользователя есть доступ
+    Получить список ресурсов, к которым у пользователя есть доступ через шеринг
+    
+    - **resource_type**: Опциональный фильтр по типу ресурса (map, collection, etc.)
     """
-    logger.info(f"Запрос на получение ресурсов с доступом для пользователя {current_user.user_id}")
-    
-    # Получаем записи шеринга
-    sharing_records = crud.get_user_shared_resources(db, current_user.user_id)
-    
-    # Формируем ответ с информацией о ресурсах
-    response = []
-    for sharing in sharing_records:
-        # Получаем информацию о ресурсе
-        resource_title = crud.get_resource_title(db, sharing.resource_id, sharing.resource_type)
+    try:
+        # Получаем список общих карт для пользователя
+        shared_maps = crud.get_shared_maps_for_user(db, user_id)
         
-        # Получаем информацию о владельце
-        owner = crud.get_resource_owner(db, sharing.resource_id, sharing.resource_type)
-        owner_name = owner.username if owner else "Неизвестный пользователь"
+        # Преобразуем в формат ответа
+        result = []
+        for map_data in shared_maps:
+            result.append(schemas.SharedResourceResponse(
+                id=map_data["id"],
+                title=map_data["title"],
+                resource_type="map",
+                map_type=map_data["map_type"],
+                is_shared=True,
+                shared_by=map_data["shared_by"]
+            ))
         
-        response.append(schemas.SharingResponse(
-            sharing=sharing,
-            resource_title=resource_title,
-            resource_owner=owner_name
-        ))
-    
-    return response
+        return result
+    except Exception as e:
+        logger.error(f"Ошибка при получении списка общих ресурсов: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Не удалось получить список общих ресурсов: {str(e)}"
+        )
 
 @router.put("/{sharing_id}", response_model=schemas.Sharing)
 async def update_sharing_record(
@@ -766,7 +784,7 @@ async def render_embed_widget(
 
                         // Устанавливаем максимальные границы карты
                         map.setMaxBounds(bounds);
-
+                    
                         // Добавляем изображение на карту
                         customImageOverlay = L.imageOverlay(imageUrl, bounds).addTo(map);
                         
@@ -780,7 +798,7 @@ async def render_embed_widget(
                         map.setZoom(0, {animate: false});
                         
                         console.log('Текущий масштаб карты:', map.getZoom());
-                        
+                    
                         // Добавляем маркеры на карту после инициализации изображения
                         if (window.markersData && window.markersData.length > 0) {
                             console.log('Добавление маркеров на пользовательскую карту:', window.markersData.length);
@@ -791,7 +809,7 @@ async def render_embed_widget(
                                 let lng = parseFloat(marker.longitude);
                                 
                                 console.log(`Исходные координаты маркера "${marker.title}": lat=${lat}, lng=${lng}`);
-                                
+                    
                                 // Проверка на корректные координаты
                                 if (isNaN(lat) || isNaN(lng)) {
                                     console.warn(`Пропуск маркера "${marker.title}" с некорректными координатами`);
@@ -873,13 +891,13 @@ async def render_embed_widget(
                                 marker.description,
                                 marker.color
                             );
-                            
+                        
                             console.log(`Маркер "${marker.title}" добавлен на OSM карту в позиции [${lat}, ${lng}]`);
                         });
                         
                         // Если есть действительные точки
                         if (validPoints.length > 0) {
-                            // Если более одного маркера, вычисляем граничные рамки
+                        // Если более одного маркера, вычисляем граничные рамки
                             if (validPoints.length > 1) {
                                 const bounds = L.latLngBounds(validPoints);
                                 map.fitBounds(bounds, { 
@@ -888,8 +906,8 @@ async def render_embed_widget(
                                 });
                                 console.log('Карта центрирована по всем маркерам');
                             } else {
-                                // Если только один маркер, центрируем на нем
-                                map.setView(
+                            // Если только один маркер, центрируем на нем
+                            map.setView(
                                     validPoints[0],
                                     13,
                                     { animate: false }
@@ -1040,18 +1058,18 @@ async def get_embed_data(
                     # и x,y - это пиксельные координаты на изображении
                     
                     # Получаем статью маркера, если есть
-                    article = None
                     try:
+                        article = None
                         articles = crud.get_articles_by_marker(db, marker.marker_id)
                         if articles:
                             article = articles[0]
                     except Exception as e:
                         logger.warning(f"Ошибка при получении статьи для маркера {marker.marker_id}: {str(e)}")
-                    
+                
                     marker_data = {
                         "id": str(marker.marker_id),
-                        "latitude": latitude,
-                        "longitude": longitude,
+                            "latitude": latitude,
+                            "longitude": longitude,
                         "title": marker.title or "Метка без названия",
                         "description": marker.description or "",
                         "color": collection.collection_color or "#4a90e2",
@@ -1066,7 +1084,7 @@ async def get_embed_data(
                             # Если это словарь
                             if article["markdown_content"]:
                                 marker_data["content"] = article["markdown_content"]
-                    
+                
                     collection_markers.append(marker_data)
                 except Exception as e:
                     logger.error(f"Ошибка при обработке маркера {getattr(marker, 'marker_id', 'unknown')}: {str(e)}")
@@ -1122,14 +1140,14 @@ async def get_embed_data(
                     logger.info(f"Маркер {marker.marker_id}: координаты [{latitude}, {longitude}] - {coordinate_type}")
                     
                     # Получаем статью маркера, если есть
-                    article = None
                     try:
+                        article = None
                         articles = crud.get_articles_by_marker(db, marker.marker_id)
                         if articles:
                             article = articles[0]
                     except Exception as e:
                         logger.warning(f"Ошибка при получении статьи для маркера {marker.marker_id}: {str(e)}")
-                    
+                
                     marker_data = {
                         "id": str(marker.marker_id),
                         "latitude": latitude,
@@ -1148,7 +1166,7 @@ async def get_embed_data(
                             # Если это словарь
                             if article["markdown_content"]:
                                 marker_data["content"] = article["markdown_content"]
-                    
+                
                     markers.append(marker_data)
                 except Exception as e:
                     logger.error(f"Ошибка при обработке маркера {getattr(marker, 'marker_id', 'unknown')}: {str(e)}")

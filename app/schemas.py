@@ -398,3 +398,19 @@ class SharingResponse(BaseModel):
     sharing: Sharing
     resource_title: str 
     resource_owner: str
+
+# ————————————————————————————————————————————————
+# Схемы для работы с ярлыками на общие карты
+class SharedMapMove(BaseModel):
+    """Схема для перемещения ярлыка на общую карту"""
+    map_id: UUID
+    target_folder_id: Optional[UUID] = None
+
+class SharedResourceResponse(BaseModel):
+    """Расширенная модель для ответа с информацией о шеринге"""
+    id: UUID
+    title: str
+    resource_type: str
+    map_type: Optional[str] = None
+    is_shared: bool = False
+    shared_by: Optional[str] = None
