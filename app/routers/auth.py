@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response, Request
 from sqlalchemy.orm import Session
 from app import schemas, crud, database
 from app.settings import settings
@@ -221,9 +221,32 @@ def logout(response: Response, token: str = Depends(oauth2_scheme), db: Session 
     return {"message": "Успешный выход из системы"}
 
 @router.post("/token/refresh", response_model=TokenResponse, summary="Обновление токена доступа", description="Создает новый токен доступа на основе действительного токена обновления.")
-def refresh_access_token(request: schemas.TokenRefreshRequest, response: Response, db: Session = Depends(get_db)):
+def refresh_access_token(
+    request: schemas.TokenRefreshRequest = None, 
+    response: Response = None, 
+    request_obj: Request = None,
+    db: Session = Depends(get_db)
+):
     """Обновляет access token с помощью refresh token"""
-    user_id = crud.validate_refresh_token(db, request.refresh_token)
+    # Получаем refresh_token из куки или из тела запроса
+    refresh_token = None
+    
+    # Проверяем cookies в запросе
+    if request_obj and request_obj.cookies and 'refresh_token' in request_obj.cookies:
+        refresh_token = request_obj.cookies.get('refresh_token')
+    
+    # Если нет в cookies, проверяем тело запроса
+    elif request and hasattr(request, 'refresh_token') and request.refresh_token:
+        refresh_token = request.refresh_token
+    
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh токен не предоставлен",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    user_id = crud.validate_refresh_token(db, refresh_token)
     
     if not user_id:
         raise HTTPException(
@@ -245,14 +268,15 @@ def refresh_access_token(request: schemas.TokenRefreshRequest, response: Respons
     access_token = crud.create_access_token({"user_id": str(user.user_id)})
     
     # Устанавливаем куки
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        max_age=15 * 24 * 60 * 60,  # 15 дней
-        samesite="lax",
-        secure=False  # установите True для HTTPS
-    )
+    if response:
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            max_age=15 * 24 * 60 * 60,  # 15 дней
+            samesite="lax",
+            secure=False  # установите True для HTTPS
+        )
     
     return {
         "access_token": access_token,

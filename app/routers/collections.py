@@ -11,7 +11,7 @@ import traceback
 from app import schemas, crud
 from app.database import get_db
 from app.routers.auth import get_user_id_from_token, get_current_user
-from app.models import Sharing
+from app.models import Sharing, MapAccess, Map
 
 router = APIRouter(tags=["collections"])
 
@@ -27,13 +27,49 @@ def list_collections(
     user_id: UUID = Depends(get_user_id_from_token)
 ):
     """Получить список коллекций с возможностью фильтрации по карте"""
+    logger = logging.getLogger(__name__)
+    
     if map_id:
-        # Проверяем, что пользователь имеет доступ к карте
-        if not crud.check_map_ownership(db, map_id, user_id):
+        logger.info(f"Запрос коллекций для карты {map_id} от пользователя {user_id}")
+        
+        # Проверяем доступ к карте через map_access
+        map_access = db.query(MapAccess).filter(
+            MapAccess.map_id == map_id,
+            MapAccess.user_id == user_id
+        ).first()
+        
+        # Проверяем доступ через sharing
+        sharing_access = db.query(Sharing).filter(
+            Sharing.resource_id == map_id,
+            Sharing.resource_type == "map",
+            Sharing.user_id == user_id,
+            Sharing.is_active == True
+        ).first()
+        
+        # Проверяем публичные sharing записи
+        public_sharing = db.query(Sharing).filter(
+            Sharing.resource_id == map_id,
+            Sharing.resource_type == "map",
+            Sharing.is_public == True,
+            Sharing.is_active == True
+        ).first()
+        
+        # Проверяем публичную карту
+        public_map = db.query(Map).filter(
+            Map.map_id == map_id,
+            Map.is_public == True
+        ).first()
+        
+        has_access = map_access is not None or sharing_access is not None or public_sharing is not None or public_map is not None
+        
+        if not has_access:
+            logger.warning(f"Пользователь {user_id} не имеет доступа к карте {map_id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Недостаточно прав для доступа к этой карте"
             )
+            
+        logger.info(f"Пользователь {user_id} имеет доступ к карте {map_id}")
         return crud.get_collections_by_map(db, map_id)
     else:
         return crud.get_collections(db, skip=skip, limit=limit)
@@ -143,8 +179,6 @@ def get_collection_markers(
     
     # Проверяем существование коллекции
     collection = crud.get_collection(db, collection_id)
-    logger.debug(f"Результат get_collection: {collection}")
-    
     if not collection:
         logger.warning(f"Коллекция {collection_id} не найдена")
         raise HTTPException(
@@ -152,56 +186,32 @@ def get_collection_markers(
             detail="Коллекция не найдена"
         )
     
-    # Проверяем, имеет ли пользователь доступ к коллекции
-    has_access = crud.check_collection_access(db, collection_id, user_id, "view")
-    logger.debug(f"Результат проверки доступа: {has_access}")
-    
-    if not has_access:
-        logger.warning(f"Пользователь {user_id} не имеет прав для доступа к коллекции {collection_id}")
-        # Это исключение должно пробрасываться напрямую, без преобразования в 500
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Недостаточно прав для доступа к этой коллекции"
-        )
-    
     try:
-        # Получаем маркеры коллекции через прямой SQL запрос вместо функции
-        logger.debug(f"Выполняем SQL запрос для получения маркеров коллекции {collection_id}")
+        # Получаем маркеры коллекции через новую функцию с проверкой доступа
+        markers = crud.get_markers_by_collection_id(db, collection_id, user_id)
         
-        # Прямой запрос к таблицам вместо вызова функции PostgreSQL
-        query = text("""
-            SELECT m.marker_id, m.latitude, m.longitude, m.title, m.description, c.map_id
-            FROM topotik.markers m
-            JOIN topotik.markers_collections mc ON m.marker_id = mc.marker_id
-            JOIN topotik.collections c ON mc.collection_id = c.collection_id
-            WHERE mc.collection_id = :collection_id
-        """)
-        
-        markers = db.execute(query, {"collection_id": str(collection_id)}).fetchall()
-        
-        logger.debug(f"Получено {len(markers) if markers else 0} маркеров")
-        
-        # Преобразуем результат в список маркеров, используя явное создание словарей
-        # вместо автоматического преобразования ORM-объектов
-        result = []
-        for marker in markers:
-            # Создаем явный словарь с полями маркера, включая map_id
-            marker_dict = {
-                "marker_id": marker.marker_id,
-                "latitude": float(marker.latitude),
-                "longitude": float(marker.longitude),
-                "title": marker.title,
-                "description": marker.description,
-                "map_id": marker.map_id
-            }
-            logger.debug(f"Обрабатываем маркер: {marker_dict}")
+        # Если маркеры не найдены (возможно из-за отсутствия прав доступа)
+        if markers is None or len(markers) == 0:
+            logger.info(f"Маркеры для коллекции {collection_id} не найдены или пользователь не имеет доступа")
             
-            # Создаем маркер из словаря
-            result.append(schemas.Marker.parse_obj(marker_dict))
+            # Проверяем явно, есть ли доступ к коллекции
+            has_access = crud.check_collection_access(db, collection_id, user_id, "view")
+            if not has_access:
+                # Если доступа нет, возвращаем 403
+                logger.warning(f"Пользователь {user_id} не имеет прав для доступа к коллекции {collection_id}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Недостаточно прав для доступа к этой коллекции"
+                )
             
-        logger.info(f"Успешно получены и преобразованы {len(result)} маркеров для коллекции {collection_id}")
-        return result
-        
+            # Если доступ есть, но маркеров нет - просто возвращаем пустой список
+            return []
+            
+        logger.info(f"Получено {len(markers)} маркеров для коллекции {collection_id}")
+        return markers
+    except HTTPException:
+        # Проксируем исключения HTTP напрямую
+        raise
     except Exception as e:
         # Логируем полное исключение для отладки
         logger.error(f"Ошибка при получении маркеров коллекции {collection_id}: {str(e)}")

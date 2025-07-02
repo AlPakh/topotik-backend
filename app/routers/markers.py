@@ -23,7 +23,7 @@ def list_markers(map_id: UUID, skip: int = 0, limit: int = 100, db: Session = De
     logger.info(f"Запрос списка маркеров для карты {map_id} от пользователя {user_id}")
     
     # Проверяем, что пользователь имеет доступ к карте
-    has_access = crud.check_map_ownership(db, map_id, user_id)
+    has_access = crud.check_map_ownership(db, map_id, user_id, required_permission="view")
     logger.debug(f"Результат проверки доступа к карте: {has_access}")
     
     if not has_access:
@@ -76,7 +76,7 @@ def create_marker(marker_in: schemas.MarkerCreate, db: Session = Depends(get_db)
                 detail="map_id обязателен для создания маркера"
             )
             
-        has_access = crud.check_map_ownership(db, marker_in.map_id, user_id)
+        has_access = crud.check_map_ownership(db, marker_in.map_id, user_id, required_permission="edit")
         logger.debug(f"Результат проверки доступа к карте {marker_in.map_id}: {has_access}")
         
         if not has_access:
@@ -179,7 +179,7 @@ def update_marker(
         
         has_access = False
         for row in collections_with_marker:
-            if crud.check_map_ownership(db, row.map_id, user_id):
+            if crud.check_map_ownership(db, row.map_id, user_id, required_permission="edit"):
                 has_access = True
                 break
                 
@@ -231,7 +231,7 @@ def delete_marker(
         
         has_access = False
         for row in collections_with_marker:
-            if crud.check_map_ownership(db, row.map_id, user_id):
+            if crud.check_map_ownership(db, row.map_id, user_id, required_permission="edit"):
                 has_access = True
                 break
                 
@@ -285,7 +285,8 @@ def get_marker_article(
         
         has_access = False
         for row in collections_with_marker:
-            if crud.check_map_ownership(db, row.map_id, user_id):
+            # Проверяем доступ на просмотр, а не только на редактирование
+            if crud.check_map_ownership(db, row.map_id, user_id, required_permission="view"):
                 has_access = True
                 break
                 
@@ -369,7 +370,8 @@ def create_marker_article(
         
         has_access = False
         for row in collections_with_marker:
-            if crud.check_map_ownership(db, row.map_id, user_id):
+            # Проверяем доступ на редактирование
+            if crud.check_map_ownership(db, row.map_id, user_id, required_permission="edit"):
                 has_access = True
                 break
                 

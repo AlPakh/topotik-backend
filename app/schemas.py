@@ -175,14 +175,22 @@ class FolderUpdate(BaseModel):
 class FolderMove(BaseModel):
     new_parent_id: Optional[UUID] = None  # None означает перемещение в корневой каталог
 
-class Folder(FolderBase):
+class Folder(BaseModel):
     folder_id: UUID
+    title: str
     user_id: UUID
     parent_folder_id: Optional[UUID] = None
-    created_at: Optional[datetime] = None
-
+    
     class Config:
         from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "folder_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "title": "Мои карты",
+                "user_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "parent_folder_id": None
+            }
+        }
 
 class FolderContent(BaseModel):
     subfolders: List[Folder]
